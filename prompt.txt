@@ -1,0 +1,62 @@
+Act as a Senior HTML5 Game Developer. Create a fully functional, self-contained single-file HTML5/JavaScript game inspired by Miniclip's "Soccer Stars" (turn-based 2D carrom-style physics).
+
+### TECHNICAL ARCHITECTURE & STACK
+1. Deliverable: Exactly ONE clean, valid, and fully playable index.html file containing all CSS, HTML, and vanilla JavaScript.
+2. Libraries: DO NOT use external game or physics frameworks (no Phaser, Matter.js, p5.js, or PixiJS). Implement all physics, game loops, rendering, and input handling with native Vanilla JavaScript and standard HTML5 Canvas 2D API.
+3. Rendering & Loop: Use requestAnimationFrame for smooth 60fps rendering.
+
+### GAME SETUP & BOARD SPECIFICATIONS
+1. Field Layout:
+   - Green canvas pitch (recommend 800x500 dynamic canvas resolution).
+   - Draw soccer pitch markings: outer boundaries, middle line, center circle, penalty arcs, and two goal post boxes on the far left and far right.
+   - Goal Nets: Recessed rectangular nets on the far left and right ends. The ball can enter the net from the front, but must be bounded by the top, back, and bottom of the goal posts.
+2. Entities:
+   - Player Team: 3 circular discs (Caps) colored Red, positioned on the left side.
+   - AI Team: 3 circular discs (Caps) colored Blue, positioned on the right side.
+   - Soccer Ball: 1 smaller white circular disc with black pentagon patterns or distinct markings.
+   - Mass & Radii Specs: Caps must be larger and heavier than the ball (e.g., Cap Radius: 22px, Mass: 3.0; Ball Radius: 12px, Mass: 1.0).
+
+### PHYSICS & MATHEMATICS ENGINE REQUIREMENTS
+Implement realistic 2D rigid-body vector physics for circles:
+1. Friction / Deceleration: Apply exponential friction on every frame to all moving bodies (`velocity *= friction`, where friction is ~0.985 for caps and ~0.990 for the ball). If absolute velocity drops below 0.05px/frame, snap velocity to zero.
+2. Wall / Pitch Boundary Collisions:
+   - Bouncing off top/bottom pitch walls and goalpost edges must invert the velocity along the collision normal with a bounce coefficient (~0.85).
+3. 2D Circle-to-Circle Elastic Collisions:
+   - Calculate distance between center points $d = \sqrt{(x_2 - x_1)^2 + (y_2 - y_1)^2}$.
+   - Overlap Resolution: If $d < r_1 + r_2$, separate the circles along the normal vector immediately to avoid overlap sticking/glitching.
+   - Momentum Transfer: Calculate impulse along the collision normal using the conservation of momentum and mass ratios:
+     $$v_1' = v_1 - \frac{2 m_2}{m_1 + m_2} \frac{\langle v_1 - v_2, x_1 - x_2 \rangle}{\Vert{}x_1 - x_2\Vert{}^2} (x_1 - x_2)$$
+4. Motion Resolution State:
+   - Maintain a global state `isMoving`. It is `true` as long as ANY cap or the ball has non-zero velocity.
+   - No inputs or AI triggers can occur while `isMoving === true`.
+
+### TURN FLOW & GAME RULES
+1. Gameplay Flow:
+   - Turn sequence: Player Turn -> Waiting for physics to stop -> AI Turn -> Waiting for physics to stop -> Player Turn.
+   - Winner Condition: First team to reach 2 goals wins immediately.
+2. Drag & Shoot Slingshot Mechanics (Player Turn):
+   - Player clicks/taps and drags back on any RED cap to shoot.
+   - Visual Feedback: While dragging, draw a trajectory line or pulling arrow starting from the cap in the opposite direction of the drag (slingshot aim line) and a power bar/indicator.
+   - Max Launch Velocity: Cap maximum drag distance (e.g., 120px max drag) to cap maximum launch force.
+   - Release: Releasing mouse/touch applies vector velocity $v = (\text{CapPos} - \text{MousePos}) \times \text{PowerFactor}$ to the selected cap and switches team turn state.
+3. Goal Detection & Reset:
+   - When the ball completely crosses the goal line into either net, trigger a "GOAL!" notification overlay.
+   - Increment the respective score.
+   - After a 1.5-second goal pause, reset all 6 caps and the ball back to their starting kick-off positions.
+4. Game Over & Reset Button:
+   - Top Bar UI: Displays Score ("Player: X | AI: Y"), Turn status indicator ("Your Turn" / "AI Thinking..."), and a prominent "Reset Game" button.
+   - When a team reaches 2 goals, display a modal dialog: "VICTORY!" or "GAME OVER!", disabling further shots until "Reset Game" is clicked.
+
+### AI DECISION ENGINE (Computer Turn)
+1. Trigger: When it is the AI's turn AND `isMoving === false`, wait 1000ms (to feel natural).
+2. Shot Calculation Heuristic:
+   - Loop through all 3 AI blue caps.
+   - Calculate the angle/vector from each AI cap to the ball, and from the ball to the player's net (Left Goal target).
+   - Find the best cap that has a clear direct angle to hit the ball toward the goal.
+   - Calculate shot power relative to distance.
+3. Execution: Apply the calculated velocity vector to the chosen AI cap and trigger the physics phase.
+
+### CODE QUALITY REQUIREMENTS
+- Provide complete, un-truncated, copy-paste-ready HTML/JS/CSS.
+- Ensure clean code modularity (functions like `updatePhysics()`, `resolveCollisions()`, `draw()`, `handleInput()`, `aiMakeMove()`, `resetPositions()`).
+- Handle edge cases: Prevent caps from glitching outside the boundary canvas, and ensure touch events (`touchstart`, `touchmove`, `touchend`) work smoothly on mobile screens alongside mouse events.

@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Soccer Stars 2D - Carrom Physics Soccer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,600;0,700;0,800;0,900;1,800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background: radial-gradient(circle at center, #1e293b 0%, #090d16 100%);
+            font-family: 'Montserrat', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        #canvas-wrapper {
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85), 
+                        0 0 0 8px #1e293b, 
+                        0 0 0 10px rgba(255, 255, 255, 0.12);
+            border-radius: 18px;
+            background: #14532d;
+            position: relative;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: pointer;
+            touch-action: none;
+        }
+        .goal-banner {
+            animation: goalPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes goalPop {
+            0% { transform: scale(0.3) rotate(-8deg); opacity: 0; }
+            70% { transform: scale(1.08) rotate(2deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .btn-glossy {
+            background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+            box-shadow: 0 4px 0 #1e3a8a, 0 8px 15px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.35);
+            transition: all 0.12s ease;
+        }
+        .btn-glossy:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+        .btn-glossy:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #1e3a8a, 0 3px 6px rgba(0,0,0,0.4);
+        }
+        .btn-emerald {
+            background: linear-gradient(180deg, #10b981 0%, #047857 100%);
+            box-shadow: 0 5px 0 #064e3b, 0 10px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4);
+            transition: all 0.12s ease;
+        }
+        .btn-emerald:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+        .btn-emerald:active {
+            transform: translateY(4px);
+            box-shadow: 0 1px 0 #064e3b, 0 4px 8px rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center p-2 sm:p-4 select-none">
+
+    <header class="w-full max-w-[900px] mb-2 sm:mb-3 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-2xl px-3 py-2 sm:px-5 sm:py-3 flex flex-wrap items-center justify-between gap-2 shadow-2xl">
+        <!-- Scoreboard -->
+        <div class="flex items-center space-x-2 sm:space-x-4">
+            <!-- Player Badge -->
+            <div class="flex items-center space-x-2 bg-red-950/60 border border-red-500/40 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl">
+                <span class="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444] border border-white/60"></span>
+                <span class="text-red-100 font-bold text-xs sm:text-sm tracking-wider uppercase">Player</span>
+                <span id="player-score" class="text-white font-black text-lg sm:text-2xl ml-1">0</span>
+            </div>
+
+            <span class="text-slate-500 font-black text-sm sm:text-lg italic">VS</span>
+
+            <!-- AI Badge -->
+            <div class="flex items-center space-x-2 bg-blue-950/60 border border-blue-500/40 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl">
+                <span id="ai-score" class="text-white font-black text-lg sm:text-2xl mr-1">0</span>
+                <span class="text-blue-100 font-bold text-xs sm:text-sm tracking-wider uppercase">AI</span>
+                <span class="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6] border border-white/60"></span>
+            </div>
+        </div>
+
+        <!-- Turn Status Indicator -->
+        <div class="flex items-center space-x-2 bg-slate-800/90 border border-slate-600/60 px-3.5 py-1.5 rounded-full shadow-inner">
+            <span id="turn-dot" class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
+            <span id="turn-status" class="text-xs sm:text-sm font-extrabold tracking-wide text-white uppercase">Your Turn</span>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex items-center space-x-2">
+            <span class="hidden md:inline-block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">First to 2 Goals</span>
+            <button id="reset-btn" class="btn-glossy text-white font-extrabold text-xs sm:text-sm px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl uppercase tracking-wider cursor-pointer">
+                Reset Game
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-[900px] flex items-center justify-center relative">
+        <div id="canvas-wrapper" class="w-full aspect-[880/500] max-h-[76vh] relative">
+            <canvas id="gameCanvas" width="880" height="500"></canvas>
+
+            <!-- Goal Notification Overlay -->
+            <div id="goal-overlay" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-[2px] pointer-events-none z-20">
+                <div class="goal-banner flex flex-col items-center">
+                    <div class="text-5xl sm:text-7xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 via-yellow-400 to-amber-600 drop-shadow-[0_6px_10px_rgba(0,0,0,0.9)] px-6 py-2">
+                        GOAL!
+                    </div>
+                    <div id="goal-scorer-text" class="mt-1 text-base sm:text-xl font-extrabold uppercase tracking-widest text-white bg-slate-900/90 border border-white/20 px-5 py-1.5 rounded-full shadow-lg">
+                        Red Team Scores!
+                    </div>
+                </div>
+            </div>
+
+            <!-- Game Over Modal Dialog -->
+            <div id="gameover-modal" class="hidden absolute inset-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4">
+                <div class="bg-gradient-to-b from-slate-800 to-slate-900 border-2 border-slate-600 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-[0_25px_70px_rgba(0,0,0,0.9)] transform transition-all">
+                    <div id="modal-badge" class="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-3 rounded-2xl flex items-center justify-center bg-amber-500/20 border border-amber-400/40 text-3xl sm:text-4xl shadow-inner">
+                        🏆
+                    </div>
+                    <h2 id="modal-title" class="text-3xl sm:text-5xl font-black italic tracking-tight text-white uppercase drop-shadow-md">
+                        VICTORY!
+                    </h2>
+                    <p id="modal-subtitle" class="text-slate-300 font-semibold text-sm sm:text-base mt-2 mb-5">
+                        You defeated the AI opponent!
+                    </p>
+                    <div class="bg-slate-950/70 border border-slate-700/80 rounded-2xl py-3 px-6 mb-6 inline-flex items-center space-x-6">
+                        <div class="text-center">
+                            <div class="text-[11px] font-bold text-red-400 uppercase tracking-wider">Player</div>
+                            <div id="modal-player-score" class="text-2xl sm:text-3xl font-black text-white">2</div>
+                        </div>
+                        <div class="text-slate-600 font-black text-xl">-</div>
+                        <div class="text-center">
+                            <div class="text-[11px] font-bold text-blue-400 uppercase tracking-wider">AI</div>
+                            <div id="modal-ai-score" class="text-2xl sm:text-3xl font-black text-white">0</div>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="modal-reset-btn" class="btn-emerald w-full py-3.5 rounded-xl text-white font-black text-base sm:text-lg uppercase tracking-wider cursor-pointer">
+                            Play Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Helper Instructions -->
+    <footer class="mt-2 text-center text-slate-400 text-[11px] sm:text-xs font-medium tracking-wide">
+        Drag back on any <span class="text-red-400 font-bold">RED CAP</span> to aim and adjust power, then release to shoot!
+    </footer>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const playerScoreEl = document.getElementById('player-score');
+        const aiScoreEl = document.getElementById('ai-score');
+        const turnStatusEl = document.getElementById('turn-status');
+        const turnDotEl = document.getElementById('turn-dot');
+        const resetBtn = document.getElementById('reset-btn');
+        const modalResetBtn = document.getElementById('modal-reset-btn');
+        const goalOverlay = document.getElementById('goal-overlay');
+        const goalScorerText = document.getElementById('goal-scorer-text');
+        const gameoverModal = document.getElementById('gameover-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalSubtitle = document.getElementById('modal-subtitle');
+        const modalBadge = document.getElementById('modal-badge');
+        const modalPlayerScore = document.getElementById('modal-player-score');
+        const modalAiScore = document.getElementById('modal-ai-score');
+
+        // Canvas & Pitch Geometry (800x440 inner pitch + 40px recessed nets on left/right)
+        const CANVAS_W = 880;
+        const CANVAS_H = 500;
+        const PITCH = {
+            left: 50,
+            right: 830,
+            top: 30,
+            bottom: 470,
+            width: 780,
+            height: 440,
+            centerX: 440,
+            centerY: 250,
+            goalTop: 175,
+            goalBottom: 325,
+            goalHeight: 150,
+            netDepth: 42
+        };
+
+        // Entity & Physics Constants
+        const CAP_RADIUS = 22;
+        const CAP_MASS = 3.0;
+        const CAP_FRICTION = 0.985;
+
+        const BALL_RADIUS = 12;
+        const BALL_MASS = 1.0;
+        const BALL_FRICTION = 0.990;
+
+        const STOP_THRESHOLD = 0.05;
+        const WALL_BOUNCE = 0.85;
+        const COLLISION_RESTITUTION = 0.92;
+        const SUB_STEPS = 4; // Physics sub-stepping prevents tunneling on high-speed shots
+
+        const MAX_DRAG_DIST = 120;
+        const MIN_DRAG_DEADZONE = 8;
+        const POWER_FACTOR = 0.165; // Maps 120px drag to ~19.8px/frame max launch speed
+        const WINNING_SCORE = 2;
+
+        // Static Circular Goal Post Colliders for authentic corner deflections
+        const GOAL_POSTS = [
+            { x: PITCH.left, y: PITCH.goalTop, radius: 5 },
+            { x: PITCH.left, y: PITCH.goalBottom, radius: 5 },
+            { x: PITCH.right, y: PITCH.goalTop, radius: 5 },
+            { x: PITCH.right, y: PITCH.goalBottom, radius: 5 }
+        ];
+
+        let scores = { player: 0, ai: 0 };
+        let currentTurn = 'PLAYER'; // 'PLAYER' | 'AI'
+        let isMoving = false;
+        let isGoalPause = false;
+        let isGameOver = false;
+        let aiTimer = null;
+        let aiSelectedCap = null; // Visual telegraphing before AI shoots
+
+        // Slingshot Drag State
+        let dragState = {
+            active: false,
+            cap: null,
+            mouseX: 0,
+            mouseY: 0
+        };
+
+        // Visual FX Particles (on goal or strong impact)
+        let impactRings = [];
+        let confettiParticles = [];
+
+        // Entities Array
+        let caps = [];
+        let ball = null;
+
+        function createEntities() {
+            caps = [
+                // Player Team (Red - Left Side Formation)
+                { id: 'p1', team: 'PLAYER', x: PITCH.left + 85,  y: PITCH.centerY,       vx: 0, vy: 0, radius: CAP_RADIUS, mass: CAP_MASS, friction: CAP_FRICTION, color: '#ef4444', darkColor: '#991b1b', accent: '#fca5a5' },
+                { id: 'p2', team: 'PLAYER', x: PITCH.left + 210, y: PITCH.centerY - 95,  vx: 0, vy: 0, radius: CAP_RADIUS, mass: CAP_MASS, friction: CAP_FRICTION, color: '#ef4444', darkColor: '#991b1b', accent: '#fca5a5' },
+                { id: 'p3', team: 'PLAYER', x: PITCH.left + 210, y: PITCH.centerY + 95,  vx: 0, vy: 0, radius: CAP_RADIUS, mass: CAP_MASS, friction: CAP_FRICTION, color: '#ef4444', darkColor: '#991b1b', accent: '#fca5a5' },
+
+                // AI Team (Blue - Right Side Formation)
+                { id: 'a1', team: 'AI',     x: PITCH.right - 85,  y: PITCH.centerY,      vx: 0, vy: 0, radius: CAP_RADIUS, mass: CAP_MASS, friction: CAP_FRICTION, color: '#3b82f6', darkColor: '#1e40af', accent: '#93c5fd' },
+                { id: 'a2', team: 'AI',     x: PITCH.right - 210, y: PITCH.centerY - 95, vx: 0, vy: 0, radius: CAP_RADIUS, mass: CAP_MASS, friction: CAP_FRICTION, color: '#3b82f6', darkColor: '#1e40af', accent: '#93c5fd' },
+                { id: 'a3', team: 'AI',     x: PITCH.right - 210, y: PITCH.centerY + 95, vx: 0, vy: 0, radius: CAP_RADIUS, mass: CAP_MASS, friction: CAP_FRICTION, color: '#3b82f6', darkColor: '#1e40af', accent: '#93c5fd' }
+            ];
+
+            ball = {
+                id: 'ball',
+                team: 'BALL',
+                x: PITCH.centerX,
+                y: PITCH.centerY,
+                vx: 0,
+                vy: 0,
+                radius: BALL_RADIUS,
+                mass: BALL_MASS,
+                friction: BALL_FRICTION,
+                angle: 0
+            };
+        }
+
+        function resetPositions() {
+            if (aiTimer) {
+                clearTimeout(aiTimer);
+                aiTimer = null;
+            }
+            aiSelectedCap = null;
+            dragState.active = false;
+            dragState.cap = null;
+            isMoving = false;
+            createEntities();
+            updateTurnUI();
+        }
+
+        function resetFullGame() {
+            scores.player = 0;
+            scores.ai = 0;
+            playerScoreEl.textContent = '0';
+            aiScoreEl.textContent = '0';
+            isGameOver = false;
+            isGoalPause = false;
+            currentTurn = 'PLAYER';
+            confettiParticles = [];
+            goalOverlay.classList.add('hidden');
+            gameoverModal.classList.add('hidden');
+            resetPositions();
+        }
+
+        function updateTurnUI() {
+            if (isGameOver) {
+                turnStatusEl.textContent = 'Match Complete';
+                turnDotEl.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+                return;
+            }
+            if (isGoalPause) {
+                turnStatusEl.textContent = 'GOAL!';
+                turnDotEl.className = 'w-2.5 h-2.5 rounded-full bg-yellow-400 animate-ping';
+                return;
+            }
+            if (isMoving) {
+                turnStatusEl.textContent = 'In Play...';
+                turnDotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping';
+                return;
+            }
+            if (currentTurn === 'PLAYER') {
+                turnStatusEl.textContent = 'Your Turn';
+                turnDotEl.className = 'w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse';
+            } else {
+                turnStatusEl.textContent = 'AI Thinking...';
+                turnDotEl.className = 'w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping';
+            }
+        }
+
+        function updatePhysics() {
+            if (isGameOver) return;
+
+            const allBodies = [...caps, ball];
+
+            // Sub-step movement and collisions for rock-solid stability
+            for (let step = 0; step < SUB_STEPS; step++) {
+                for (let b of allBodies) {
+                    b.x += b.vx / SUB_STEPS;
+                    b.y += b.vy / SUB_STEPS;
+
+                    // Rotate soccer ball visually based on velocity
+                    if (b === ball) {
+                        b.angle += Math.hypot(b.vx, b.vy) / (SUB_STEPS * 18);
+                    }
+                }
+                resolveCollisions(allBodies);
+            }
+
+            // Apply exponential friction once per frame and check motion state
+            let movingNow = false;
+            for (let b of allBodies) {
+                b.vx *= b.friction;
+                b.vy *= b.friction;
+
+                const speed = Math.hypot(b.vx, b.vy);
+                if (speed < STOP_THRESHOLD) {
+                    b.vx = 0;
+                    b.vy = 0;
+                } else {
+                    movingNow = true;
+                }
+            }
+
+            // Check if a goal was scored on this frame
+            if (!isGoalPause) {
+                checkGoalScored();
+            }
+
+            // State transition when physics comes to a complete stop
+            if (isMoving && !movingNow) {
+                isMoving = false;
+                updateTurnUI();
+                if (!isGoalPause && !isGameOver && currentTurn === 'AI') {
+                    scheduleAIMove();
+                }
+            } else if (!isMoving && movingNow) {
+                isMoving = true;
+                updateTurnUI();
+            }
+        }
+
+        function resolveCollisions(bodies) {
+            // 1. Wall & Goal Net Boundary Collisions
+            for (let b of bodies) {
+                const inGoalMouthY = (b.y > PITCH.goalTop && b.y < PITCH.goalBottom);
+                const inLeftNet = b.x < PITCH.left;
+                const inRightNet = b.x > PITCH.right;
+
+                // Top & Bottom Pitch Walls (when outside the recessed nets)
+                if (!inLeftNet && !inRightNet) {
+                    if (b.y - b.radius < PITCH.top) {
+                        b.y = PITCH.top + b.radius;
+                        b.vy = Math.abs(b.vy) * WALL_BOUNCE;
+                    } else if (b.y + b.radius > PITCH.bottom) {
+                        b.y = PITCH.bottom - b.radius;
+                        b.vy = -Math.abs(b.vy) * WALL_BOUNCE;
+                    }
+                }
+
+                // Left Boundary & Left Goal Recessed Box
+                if (!inGoalMouthY && !inLeftNet) {
+                    if (b.x - b.radius < PITCH.left) {
+                        b.x = PITCH.left + b.radius;
+                        b.vx = Math.abs(b.vx) * WALL_BOUNCE;
+                    }
+                } else {
+                    // Inside Left Goal Mouth or Net
+                    const netBackLeft = PITCH.left - PITCH.netDepth;
+                    if (b.x - b.radius < netBackLeft) {
+                        b.x = netBackLeft + b.radius;
+                        b.vx = Math.abs(b.vx) * (b === ball ? 0.45 : WALL_BOUNCE); // Net dampens ball
+                    }
+                    if (b.x < PITCH.left) {
+                        if (b.y - b.radius < PITCH.goalTop) {
+                            b.y = PITCH.goalTop + b.radius;
+                            b.vy = Math.abs(b.vy) * (b === ball ? 0.5 : WALL_BOUNCE);
+                        } else if (b.y + b.radius > PITCH.goalBottom) {
+                            b.y = PITCH.goalBottom - b.radius;
+                            b.vy = -Math.abs(b.vy) * (b === ball ? 0.5 : WALL_BOUNCE);
+                        }
+                    }
+                }
+
+                // Right Boundary & Right Goal Recessed Box
+                if (!inGoalMouthY && !inRightNet) {
+                    if (b.x + b.radius > PITCH.right) {
+                        b.x = PITCH.right - b.radius;
+                        b.vx = -Math.abs(b.vx) * WALL_BOUNCE;
+                    }
+                } else {
+                    // Inside Right Goal Mouth or Net
+                    const netBackRight = PITCH.right + PITCH.netDepth;
+                    if (b.x + b.radius > netBackRight) {
+                        b.x = netBackRight - b.radius;
+                        b.vx = -Math.abs(b.vx) * (b === ball ? 0.45 : WALL_BOUNCE);
+                    }
+                    if (b.x > PITCH.right) {
+                        if (b.y - b.radius < PITCH.goalTop) {
+                            b.y = PITCH.goalTop + b.radius;
+                            b.vy = Math.abs(b.vy) * (b === ball ? 0.5 : WALL_BOUNCE);
+                        } else if (b.y + b.radius > PITCH.goalBottom) {
+                            b.y = PITCH.goalBottom - b.radius;
+                            b.vy = -Math.abs(b.vy) * (b === ball ? 0.5 : WALL_BOUNCE);
+                        }
+                    }
+                }
+
+                // 2. Goal Post Corner Colliders (Static Circular Posts)
+                for (let post of GOAL_POSTS) {
+                    const dx = b.x - post.x;
+                    const dy = b.y - post.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = b.radius + post.radius;
+
+                    if (dist < minDist && dist > 0.0001) {
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+                        const overlap = minDist - dist;
+                        b.x += nx * overlap;
+                        b.y += ny * overlap;
+
+                        const dot = b.vx * nx + b.vy * ny;
+                        if (dot < 0) {
+                            b.vx -= (1 + WALL_BOUNCE) * dot * nx;
+                            b.vy -= (1 + WALL_BOUNCE) * dot * ny;
+                            spawnImpactRing(post.x, post.y, '#ffffff', 16);
+                        }
+                    }
+                }
+            }
+
+            // 3. 2D Circle-to-Circle Elastic Collisions
+            for (let i = 0; i < bodies.length; i++) {
+                for (let j = i + 1; j < bodies.length; j++) {
+                    const b1 = bodies[i];
+                    const b2 = bodies[j];
+
+                    const dx = b2.x - b1.x;
+                    const dy = b2.y - b1.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = b1.radius + b2.radius;
+
+                    if (dist < minDist) {
+                        // Normal vector from b1 to b2
+                        const nx = dist > 0.0001 ? dx / dist : 1;
+                        const ny = dist > 0.0001 ? dy / dist : 0;
+
+                        // Overlap Resolution proportionate to inverse mass
+                        const overlap = minDist - dist;
+                        const totalMass = b1.mass + b2.mass;
+                        b1.x -= nx * overlap * (b2.mass / totalMass);
+                        b1.y -= ny * overlap * (b2.mass / totalMass);
+                        b2.x += nx * overlap * (b1.mass / totalMass);
+                        b2.y += ny * overlap * (b1.mass / totalMass);
+
+                        // Momentum Transfer along collision normal
+                        const kx = b1.vx - b2.vx;
+                        const ky = b1.vy - b2.vy;
+                        const p = nx * kx + ny * ky;
+
+                        // Only resolve velocity if circles are moving toward each other
+                        if (p > 0) {
+                            const impulse = ((1 + COLLISION_RESTITUTION) * p) / totalMass;
+                            b1.vx -= impulse * b2.mass * nx;
+                            b1.vy -= impulse * b2.mass * ny;
+                            b2.vx += impulse * b1.mass * nx;
+                            b2.vy += impulse * b1.mass * ny;
+
+                            // Subtle impact visual ring if collision is strong
+                            if (p > 2.5) {
+                                const hitX = b1.x + nx * b1.radius;
+                                const hitY = b1.y + ny * b1.radius;
+                                spawnImpactRing(hitX, hitY, 'rgba(255,255,255,0.65)', 22);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function checkGoalScored() {
+            // Left Net: AI scores when ball completely crosses left goal line
+            if (ball.x + ball.radius < PITCH.left && ball.y > PITCH.goalTop && ball.y < PITCH.goalBottom) {
+                handleGoal('AI');
+            }
+            // Right Net: Player scores when ball completely crosses right goal line
+            else if (ball.x - ball.radius > PITCH.right && ball.y > PITCH.goalTop && ball.y < PITCH.goalBottom) {
+                handleGoal('PLAYER');
+            }
+        }
+
+        function handleGoal(scorer) {
+            isGoalPause = true;
+            if (aiTimer) {
+                clearTimeout(aiTimer);
+                aiTimer = null;
+            }
+
+            if (scorer === 'PLAYER') {
+                scores.player++;
+                playerScoreEl.textContent = scores.player;
+                goalScorerText.textContent = 'Red Team Scores!';
+                goalScorerText.className = 'mt-1 text-base sm:text-xl font-extrabold uppercase tracking-widest text-red-200 bg-red-950/90 border border-red-400/50 px-5 py-1.5 rounded-full shadow-lg';
+            } else {
+                scores.ai++;
+                aiScoreEl.textContent = scores.ai;
+                goalScorerText.textContent = 'Blue Team Scores!';
+                goalScorerText.className = 'mt-1 text-base sm:text-xl font-extrabold uppercase tracking-widest text-blue-200 bg-blue-950/90 border border-blue-400/50 px-5 py-1.5 rounded-full shadow-lg';
+            }
+
+            spawnGoalConfetti(scorer === 'PLAYER' ? PITCH.right : PITCH.left, PITCH.centerY, scorer);
+            goalOverlay.classList.remove('hidden');
+            updateTurnUI();
+
+            setTimeout(() => {
+                goalOverlay.classList.add('hidden');
+                isGoalPause = false;
+
+                // Check Winning Condition (First to 2 Goals)
+                if (scores.player >= WINNING_SCORE || scores.ai >= WINNING_SCORE) {
+                    triggerGameOver();
+                } else {
+                    // Conceding team gets kick-off turn or alternate cleanly
+                    currentTurn = (scorer === 'PLAYER') ? 'AI' : 'PLAYER';
+                    resetPositions();
+                    if (currentTurn === 'AI') {
+                        scheduleAIMove();
+                    }
+                }
+            }, 1500);
+        }
+
+        function triggerGameOver() {
+            isGameOver = true;
+            dragState.active = false;
+            const playerWon = scores.player >= WINNING_SCORE;
+
+            modalPlayerScore.textContent = scores.player;
+            modalAiScore.textContent = scores.ai;
+
+            if (playerWon) {
+                modalTitle.textContent = 'VICTORY!';
+                modalTitle.className = 'text-3xl sm:text-5xl font-black italic tracking-tight text-amber-400 uppercase drop-shadow-md';
+                modalSubtitle.textContent = 'Awesome shots! You won the championship match!';
+                modalBadge.textContent = '🏆';
+            } else {
+                modalTitle.textContent = 'GAME OVER!';
+                modalTitle.className = 'text-3xl sm:text-5xl font-black italic tracking-tight text-red-400 uppercase drop-shadow-md';
+                modalSubtitle.textContent = 'The AI takes the win this time. Ready for a rematch?';
+                modalBadge.textContent = '⚽';
+            }
+
+            gameoverModal.classList.remove('hidden');
+            updateTurnUI();
+        }
+
+        function scheduleAIMove() {
+            if (isGameOver || isGoalPause || currentTurn !== 'AI') return;
+            if (aiTimer) clearTimeout(aiTimer);
+
+            aiTimer = setTimeout(() => {
+                if (!isMoving && !isGoalPause && !isGameOver && currentTurn === 'AI') {
+                    aiMakeMove();
+                }
+            }, 1000);
+        }
+
+        function isPathClear(x1, y1, x2, y2, ignoreList, clearanceRadius) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const len = Math.hypot(dx, dy);
+            if (len < 1) return true;
+
+            const allBodies = [...caps, ball];
+            for (let b of allBodies) {
+                if (ignoreList.includes(b)) continue;
+                // Project body center onto segment
+                const t = Math.max(0, Math.min(1, ((b.x - x1) * dx + (b.y - y1) * dy) / (len * len)));
+                const projX = x1 + t * dx;
+                const projY = y1 + t * dy;
+                const dist = Math.hypot(b.x - projX, b.y - projY);
+                if (dist < b.radius + clearanceRadius) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function aiMakeMove() {
+            const aiCaps = caps.filter(c => c.team === 'AI');
+            const goalTargetX = PITCH.left;
+            // Pick 3 target points in the Player's goal (center, upper corner, lower corner)
+            const goalTargets = [
+                { x: goalTargetX, y: PITCH.centerY },
+                { x: goalTargetX, y: PITCH.goalTop + 32 },
+                { x: goalTargetX, y: PITCH.goalBottom - 32 }
+            ];
+
+            let bestCandidate = null;
+            let bestScore = -Infinity;
+
+            for (let cap of aiCaps) {
+                for (let target of goalTargets) {
+                    // Vector from Ball to Goal Target
+                    const bToGx = target.x - ball.x;
+                    const bToGy = target.y - ball.y;
+                    const bToGDist = Math.hypot(bToGx, bToGy);
+                    const bToGNx = bToGx / bToGDist;
+                    const bToGNy = bToGy / bToGDist;
+
+                    // Ghost ball contact point (where AI cap center needs to hit ball)
+                    const contactDist = cap.radius + ball.radius - 1;
+                    const ghostX = ball.x - bToGNx * contactDist;
+                    const ghostY = ball.y - bToGNy * contactDist;
+
+                    // Vector from AI Cap to Ghost Ball
+                    const cToGhostX = ghostX - cap.x;
+                    const cToGhostY = ghostY - cap.y;
+                    const cToGhostDist = Math.hypot(cToGhostX, cToGhostY);
+                    const cToGhostNx = cToGhostX / (cToGhostDist || 1);
+                    const cToGhostNy = cToGhostY / (cToGhostDist || 1);
+
+                    // Alignment dot product (1.0 = straight line through ball into goal)
+                    const alignment = cToGhostNx * bToGNx + cToGhostNy * bToGNy;
+
+                    // Check obstacles along cap -> ghostBall and ball -> goal
+                    const capToBallClear = isPathClear(cap.x, cap.y, ghostX, ghostY, [cap, ball], cap.radius * 0.85);
+                    const ballToGoalClear = isPathClear(ball.x, ball.y, target.x, target.y, [cap, ball], ball.radius * 0.9);
+
+                    // Heuristic score calculation
+                    let score = alignment * 120;
+                    score -= cToGhostDist * 0.14; // Prefer closer caps
+                    if (capToBallClear) score += 75;
+                    if (ballToGoalClear) score += 45;
+
+                    // Penalize hitting the ball backward toward AI's own net
+                    if (alignment < -0.15) score -= 160;
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestCandidate = {
+                            cap,
+                            aimX: ghostX,
+                            aimY: ghostY,
+                            dist: cToGhostDist,
+                            alignment
+                        };
+                    }
+                }
+            }
+
+            // Fallback if all caps are behind the ball (Defensive clearance / bank shot)
+            if (!bestCandidate || bestCandidate.alignment < 0.05) {
+                // Pick cap closest to ball and hit ball toward top/bottom wall or away from AI goal
+                let closestCap = aiCaps[0];
+                let minD = Infinity;
+                for (let c of aiCaps) {
+                    const d = Math.hypot(ball.x - c.x, ball.y - c.y);
+                    if (d < minD) {
+                        minD = d;
+                        closestCap = c;
+                    }
+                }
+                const offsetY = (ball.y > PITCH.centerY) ? 14 : -14;
+                bestCandidate = {
+                    cap: closestCap,
+                    aimX: ball.x + 8,
+                    aimY: ball.y + offsetY,
+                    dist: minD,
+                    alignment: 0.2
+                };
+            }
+
+            const chosenCap = bestCandidate.cap;
+            aiSelectedCap = chosenCap;
+
+            // Calculate launch vector and speed scaled to distance
+            const dx = bestCandidate.aimX - chosenCap.x;
+            const dy = bestCandidate.aimY - chosenCap.y;
+            const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.035; // Slight natural human-like variance
+
+            const maxSpeed = MAX_DRAG_DIST * POWER_FACTOR;
+            const desiredSpeed = Math.min(maxSpeed, Math.max(9.5, bestCandidate.dist * 0.042 + 9.0));
+
+            // Brief visual highlight on chosen AI cap before shooting
+            setTimeout(() => {
+                if (isGameOver || isGoalPause) return;
+                chosenCap.vx = Math.cos(angle) * desiredSpeed;
+                chosenCap.vy = Math.sin(angle) * desiredSpeed;
+                aiSelectedCap = null;
+                isMoving = true;
+                currentTurn = 'PLAYER';
+                updateTurnUI();
+            }, 260);
+        }
+
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            let clientX, clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function onPointerDown(e) {
+            if (isMoving || isGoalPause || isGameOver || currentTurn !== 'PLAYER') return;
+
+            const pos = getCanvasCoords(e);
+            // Check if user clicked/tapped on any RED Player cap (generous hit radius for mobile touch)
+            for (let cap of caps) {
+                if (cap.team === 'PLAYER') {
+                    const dist = Math.hypot(pos.x - cap.x, pos.y - cap.y);
+                    if (dist <= cap.radius + 10) {
+                        dragState.active = true;
+                        dragState.cap = cap;
+                        dragState.mouseX = pos.x;
+                        dragState.mouseY = pos.y;
+                        if (e.cancelable) e.preventDefault();
+                        break;
+                    }
+                }
+            }
+        }
+
+        function onPointerMove(e) {
+            if (!dragState.active || !dragState.cap) return;
+            if (e.cancelable) e.preventDefault();
+            const pos = getCanvasCoords(e);
+            dragState.mouseX = pos.x;
+            dragState.mouseY = pos.y;
+        }
+
+        function onPointerUp(e) {
+            if (!dragState.active || !dragState.cap) return;
+            if (e.cancelable) e.preventDefault();
+
+            const cap = dragState.cap;
+            const pullX = cap.x - dragState.mouseX;
+            const pullY = cap.y - dragState.mouseY;
+            const rawDist = Math.hypot(pullX, pullY);
+
+            dragState.active = false;
+            dragState.cap = null;
+
+            // Only fire if dragged beyond deadzone
+            if (rawDist >= MIN_DRAG_DEADZONE) {
+                const clampedDist = Math.min(rawDist, MAX_DRAG_DIST);
+                const nx = pullX / rawDist;
+                const ny = pullY / rawDist;
+
+                cap.vx = nx * clampedDist * POWER_FACTOR;
+                cap.vy = ny * clampedDist * POWER_FACTOR;
+
+                isMoving = true;
+                currentTurn = 'AI';
+                updateTurnUI();
+            }
+        }
+
+        function handleInput() {
+            canvas.addEventListener('mousedown', onPointerDown);
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp);
+
+            canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+            window.addEventListener('touchmove', onPointerMove, { passive: false });
+            window.addEventListener('touchend', onPointerUp, { passive: false });
+
+            resetBtn.addEventListener('click', resetFullGame);
+            modalResetBtn.addEventListener('click', resetFullGame);
+        }
+
+        function spawnImpactRing(x, y, color, maxR) {
+            impactRings.push({ x, y, r: 4, maxR, alpha: 0.9, color });
+        }
+
+        function spawnGoalConfetti(x, y, scorer) {
+            const palette = scorer === 'PLAYER'
+                ? ['#ef4444', '#fca5a5', '#facc15', '#ffffff']
+                : ['#3b82f6', '#93c5fd', '#38bdf8', '#ffffff'];
+
+            for (let i = 0; i < 55; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 8;
+                confettiParticles.push({
+                    x,
+                    y: y + (Math.random() - 0.5) * 80,
+                    vx: Math.cos(angle) * speed + (scorer === 'PLAYER' ? -2.5 : 2.5),
+                    vy: Math.sin(angle) * speed - 1.5,
+                    size: 4 + Math.random() * 5,
+                    color: palette[Math.floor(Math.random() * palette.length)],
+                    alpha: 1,
+                    rot: Math.random() * Math.PI
+                });
+            }
+        }
+
+        function updateAndDrawEffects() {
+            // Impact rings
+            for (let i = impactRings.length - 1; i >= 0; i--) {
+                const ring = impactRings[i];
+                ring.r += 1.6;
+                ring.alpha -= 0.06;
+                if (ring.alpha <= 0) {
+                    impactRings.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(ring.x, ring.y, ring.r, 0, Math.PI * 2);
+                ctx.strokeStyle = ring.color;
+                ctx.globalAlpha = Math.max(0, ring.alpha);
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Confetti particles
+            for (let i = confettiParticles.length - 1; i >= 0; i--) {
+                const p = confettiParticles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vx *= 0.96;
+                p.vy *= 0.96;
+                p.rot += 0.1;
+                p.alpha -= 0.014;
+                if (p.alpha <= 0) {
+                    confettiParticles.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                ctx.restore();
+            }
+        }
+
+        function drawPitch() {
+            // Outer dark stadium surround
+            ctx.fillStyle = '#0f291e';
+            ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+            // Alternating lush turf stripes inside the pitch
+            const numStripes = 10;
+            const stripeW = PITCH.width / numStripes;
+            for (let i = 0; i < numStripes; i++) {
+                ctx.fillStyle = i % 2 === 0 ? '#15803d' : '#166534';
+                ctx.fillRect(PITCH.left + i * stripeW, PITCH.top, stripeW, PITCH.height);
+            }
+
+            // Subtle vignette inside pitch
+            const grad = ctx.createRadialGradient(PITCH.centerX, PITCH.centerY, 120, PITCH.centerX, PITCH.centerY, 500);
+            grad.addColorStop(0, 'rgba(255,255,255,0.03)');
+            grad.addColorStop(1, 'rgba(0,0,0,0.22)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(PITCH.left, PITCH.top, PITCH.width, PITCH.height);
+
+            // Pitch White Markings
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.78)';
+            ctx.lineWidth = 3;
+
+            // Outer boundary lines (leaving goal mouths open)
+            ctx.beginPath();
+            // Top wall
+            ctx.moveTo(PITCH.left, PITCH.top);
+            ctx.lineTo(PITCH.right, PITCH.top);
+            // Bottom wall
+            ctx.moveTo(PITCH.left, PITCH.bottom);
+            ctx.lineTo(PITCH.right, PITCH.bottom);
+            // Left wall segments
+            ctx.moveTo(PITCH.left, PITCH.top);
+            ctx.lineTo(PITCH.left, PITCH.goalTop);
+            ctx.moveTo(PITCH.left, PITCH.goalBottom);
+            ctx.lineTo(PITCH.left, PITCH.bottom);
+            // Right wall segments
+            ctx.moveTo(PITCH.right, PITCH.top);
+            ctx.lineTo(PITCH.right, PITCH.goalTop);
+            ctx.moveTo(PITCH.right, PITCH.goalBottom);
+            ctx.lineTo(PITCH.right, PITCH.bottom);
+            ctx.stroke();
+
+            // Goal lines (slightly thinner & translucent)
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(PITCH.left, PITCH.goalTop);
+            ctx.lineTo(PITCH.left, PITCH.goalBottom);
+            ctx.moveTo(PITCH.right, PITCH.goalTop);
+            ctx.lineTo(PITCH.right, PITCH.goalBottom);
+            ctx.stroke();
+            ctx.restore();
+
+            // Halfway Line
+            ctx.beginPath();
+            ctx.moveTo(PITCH.centerX, PITCH.top);
+            ctx.lineTo(PITCH.centerX, PITCH.bottom);
+            ctx.stroke();
+
+            // Center Circle & Center Spot
+            ctx.beginPath();
+            ctx.arc(PITCH.centerX, PITCH.centerY, 64, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(PITCH.centerX, PITCH.centerY, 5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fill();
+
+            // Left Penalty Area & Penalty Arc
+            const penW = 115;
+            const penH = 250;
+            ctx.strokeRect(PITCH.left, PITCH.centerY - penH / 2, penW, penH);
+            ctx.strokeRect(PITCH.left, PITCH.centerY - 170 / 2, 48, 170);
+            ctx.beginPath();
+            ctx.arc(PITCH.left + 88, PITCH.centerY, 48, -0.36 * Math.PI, 0.36 * Math.PI);
+            ctx.stroke();
+
+            // Right Penalty Area & Penalty Arc
+            ctx.strokeRect(PITCH.right - penW, PITCH.centerY - penH / 2, penW, penH);
+            ctx.strokeRect(PITCH.right - 48, PITCH.centerY - 170 / 2, 48, 170);
+            ctx.beginPath();
+            ctx.arc(PITCH.right - 88, PITCH.centerY, 48, 0.64 * Math.PI, 1.36 * Math.PI);
+            ctx.stroke();
+
+            // Corner Arcs
+            const cR = 16;
+            ctx.beginPath();
+            ctx.arc(PITCH.left, PITCH.top, cR, 0, Math.PI * 0.5);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(PITCH.left, PITCH.bottom, cR, -Math.PI * 0.5, 0);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(PITCH.right, PITCH.top, cR, Math.PI * 0.5, Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(PITCH.right, PITCH.bottom, cR, Math.PI, Math.PI * 1.5);
+            ctx.stroke();
+
+            ctx.restore();
+
+            // Draw Recessed Goal Nets (Left & Right)
+            drawGoalNet(PITCH.left - PITCH.netDepth, PITCH.goalTop, PITCH.netDepth, PITCH.goalHeight, 'LEFT');
+            drawGoalNet(PITCH.right, PITCH.goalTop, PITCH.netDepth, PITCH.goalHeight, 'RIGHT');
+        }
+
+        function drawGoalNet(x, y, w, h, side) {
+            ctx.save();
+            // Dark floor inside net
+            ctx.fillStyle = 'rgba(8, 22, 15, 0.75)';
+            ctx.fillRect(x, y, w, h);
+
+            // Cross-hatch mesh lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = 1;
+            const step = 8;
+            ctx.beginPath();
+            for (let gx = x + step; gx < x + w; gx += step) {
+                ctx.moveTo(gx, y);
+                ctx.lineTo(gx, y + h);
+            }
+            for (let gy = y + step; gy < y + h; gy += step) {
+                ctx.moveTo(x, gy);
+                ctx.lineTo(x + w, gy);
+            }
+            ctx.stroke();
+
+            // Metallic Goal Frame (Top, Back, Bottom)
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.lineWidth = 4.5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            if (side === 'LEFT') {
+                ctx.moveTo(x + w, y);
+                ctx.lineTo(x, y);
+                ctx.lineTo(x, y + h);
+                ctx.lineTo(x + w, y + h);
+            } else {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + w, y);
+                ctx.lineTo(x + w, y + h);
+                ctx.lineTo(x, y + h);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawGoalPosts() {
+            for (let post of GOAL_POSTS) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(post.x, post.y, post.radius + 1, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                ctx.shadowBlur = 5;
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#64748b';
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function drawCaps(timestamp) {
+            const pulse = 0.5 + 0.5 * Math.sin(timestamp * 0.006);
+
+            for (let cap of caps) {
+                ctx.save();
+
+                // Active Turn Pulsing Ring for Player Caps
+                if (cap.team === 'PLAYER' && currentTurn === 'PLAYER' && !isMoving && !isGoalPause && !isGameOver) {
+                    ctx.beginPath();
+                    ctx.arc(cap.x, cap.y, cap.radius + 5 + pulse * 3, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.25 + pulse * 0.35})`;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                // AI Selected Cap Telegraph Highlight
+                if (aiSelectedCap === cap) {
+                    ctx.beginPath();
+                    ctx.arc(cap.x, cap.y, cap.radius + 7, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+
+                // Drop Shadow
+                ctx.beginPath();
+                ctx.arc(cap.x, cap.y + 3, cap.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
+                ctx.fill();
+
+                // Outer Metallic / White Rim
+                ctx.beginPath();
+                ctx.arc(cap.x, cap.y, cap.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#f8fafc';
+                ctx.fill();
+
+                // Main Team Color Disc with Radial Gradient
+                const grad = ctx.createRadialGradient(
+                    cap.x - cap.radius * 0.3,
+                    cap.y - cap.radius * 0.3,
+                    cap.radius * 0.1,
+                    cap.x,
+                    cap.y,
+                    cap.radius * 0.86
+                );
+                grad.addColorStop(0, cap.accent);
+                grad.addColorStop(0.35, cap.color);
+                grad.addColorStop(1, cap.darkColor);
+
+                ctx.beginPath();
+                ctx.arc(cap.x, cap.y, cap.radius * 0.84, 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+
+                // Inner Carrom Ring Details
+                ctx.beginPath();
+                ctx.arc(cap.x, cap.y, cap.radius * 0.52, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Center Emblem Star / Dot
+                ctx.beginPath();
+                ctx.arc(cap.x, cap.y, cap.radius * 0.2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        function drawSoccerBall() {
+            ctx.save();
+
+            // Ball Shadow
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y + 2.5, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.fill();
+
+            ctx.translate(ball.x, ball.y);
+            ctx.rotate(ball.angle);
+
+            // Base White Sphere with 3D Shading
+            const grad = ctx.createRadialGradient(-3, -3, 2, 0, 0, ball.radius);
+            grad.addColorStop(0, '#ffffff');
+            grad.addColorStop(0.75, '#f1f5f9');
+            grad.addColorStop(1, '#94a3b8');
+
+            ctx.beginPath();
+            ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // Clip inner pentagon pattern to ball circle
+            ctx.beginPath();
+            ctx.arc(0, 0, ball.radius, 0, Math.PI * 2);
+            ctx.clip();
+
+            // Center Black Pentagon
+            ctx.fillStyle = '#1e293b';
+            const pentR = 4.6;
+            ctx.beginPath();
+            for (let i = 0; i < 5; i++) {
+                const a = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+                const px = Math.cos(a) * pentR;
+                const py = Math.sin(a) * pentR;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Seam Spokes & Outer Patches
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1.2;
+            for (let i = 0; i < 5; i++) {
+                const a = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+                const x1 = Math.cos(a) * pentR;
+                const y1 = Math.sin(a) * pentR;
+                const x2 = Math.cos(a) * (ball.radius * 0.82);
+                const y2 = Math.sin(a) * (ball.radius * 0.82);
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+
+                // Outer dark patch along rim
+                ctx.beginPath();
+                ctx.arc(Math.cos(a) * (ball.radius + 1), Math.sin(a) * (ball.radius + 1), 4.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Crisp Outer Rim
+            ctx.beginPath();
+            ctx.arc(0, 0, ball.radius - 0.5, 0, Math.PI * 2);
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawSlingshotUI() {
+            if (!dragState.active || !dragState.cap) return;
+
+            const cap = dragState.cap;
+            const pullX = cap.x - dragState.mouseX;
+            const pullY = cap.y - dragState.mouseY;
+            const rawDist = Math.hypot(pullX, pullY);
+
+            if (rawDist < MIN_DRAG_DEADZONE) return;
+
+            const clampedDist = Math.min(rawDist, MAX_DRAG_DIST);
+            const powerRatio = clampedDist / MAX_DRAG_DIST; // 0.0 to 1.0
+            const nx = pullX / rawDist;
+            const ny = pullY / rawDist;
+
+            // Dynamic Power Color: Green -> Yellow -> Red
+            const hue = Math.round((1 - powerRatio) * 120);
+            const powerColor = `hsl(${hue}, 95%, 52%)`;
+
+            ctx.save();
+
+            // 1. Power Ring Gauge Around Selected Cap
+            ctx.beginPath();
+            ctx.arc(cap.x, cap.y, cap.radius + 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * powerRatio);
+            ctx.strokeStyle = powerColor;
+            ctx.lineWidth = 4.5;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // 2. Slingshot Pull Handle (Behind the Cap)
+            const pullEndX = cap.x - nx * clampedDist;
+            const pullEndY = cap.y - ny * clampedDist;
+
+            // Elastic bands from sides of cap to pull handle
+            const perpX = -ny * (cap.radius * 0.65);
+            const perpY = nx * (cap.radius * 0.65);
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(cap.x + perpX, cap.y + perpY);
+            ctx.lineTo(pullEndX, pullEndY);
+            ctx.lineTo(cap.x - perpX, cap.y - perpY);
+            ctx.stroke();
+
+            // Pull knob circle
+            ctx.beginPath();
+            ctx.arc(pullEndX, pullEndY, 7, 0, Math.PI * 2);
+            ctx.fillStyle = powerColor;
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+
+            // 3. Forward Trajectory / Aiming Arrow (Opposite of Drag)
+            const aimLength = clampedDist * 1.45 + 18;
+            const aimEndX = cap.x + nx * aimLength;
+            const aimEndY = cap.y + ny * aimLength;
+
+            // Glowing trajectory ray
+            ctx.beginPath();
+            ctx.setLineDash([8, 6]);
+            ctx.moveTo(cap.x + nx * (cap.radius + 4), cap.y + ny * (cap.radius + 4));
+            ctx.lineTo(aimEndX, aimEndY);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3.5;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Arrowhead at end of trajectory line
+            const angle = Math.atan2(ny, nx);
+            const headLen = 13;
+            ctx.beginPath();
+            ctx.moveTo(aimEndX, aimEndY);
+            ctx.lineTo(aimEndX - headLen * Math.cos(angle - Math.PI / 6), aimEndY - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(aimEndX - headLen * Math.cos(angle + Math.PI / 6), aimEndY - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fillStyle = powerColor;
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // 4. Power Percentage Pill Badge near Cap
+            const pctText = `${Math.round(powerRatio * 100)}%`;
+            const badgeX = cap.x;
+            const badgeY = cap.y - cap.radius - 20;
+            ctx.font = '800 12px Montserrat, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.beginPath();
+            ctx.roundRect(badgeX - 22, badgeY - 10, 44, 20, 6);
+            ctx.fill();
+            ctx.fillStyle = powerColor;
+            ctx.fillText(pctText, badgeX, badgeY);
+
+            ctx.restore();
+        }
+
+        function draw(timestamp = 0) {
+            ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+
+            drawPitch();
+            drawSlingshotUI();
+            drawCaps(timestamp);
+            drawSoccerBall();
+            drawGoalPosts();
+            updateAndDrawEffects();
+        }
+
+        function gameLoop(timestamp) {
+            updatePhysics();
+            draw(timestamp);
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game when window finishes loading
+        window.onload = function () {
+            createEntities();
+            handleInput();
+            updateTurnUI();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>

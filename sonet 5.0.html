@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Kickoff Duel</title>
+<style>
+  :root {
+    --bg: #0a1420;
+    --bg-2: #0f1e2e;
+    --panel: #12283b;
+    --panel-line: #1e3a52;
+    --ink: #eaf2f7;
+    --ink-dim: #9fb3c2;
+    --red: #e5473a;
+    --red-dark: #a8291f;
+    --blue: #2f7dea;
+    --blue-dark: #1a4d94;
+    --pitch-a: #1c7a3e;
+    --pitch-b: #1a6f38;
+    --line-white: rgba(255,255,255,0.85);
+    --gold: #f2b632;
+  }
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #eef2f5;
+      --bg-2: #e4ebf0;
+      --panel: #ffffff;
+      --panel-line: #d7e1e8;
+      --ink: #10202c;
+      --ink-dim: #55707f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0a1420; --bg-2: #0f1e2e; --panel: #12283b; --panel-line: #1e3a52; --ink: #eaf2f7; --ink-dim: #9fb3c2;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    background: radial-gradient(1200px 800px at 50% -10%, var(--bg-2), var(--bg) 60%);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding-top: max(16px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+    padding-left: 16px;
+    padding-right: 16px;
+    min-height: 100%;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: linear-gradient(180deg, var(--panel), color-mix(in srgb, var(--panel) 85%, black));
+    border: 1px solid var(--panel-line);
+    border-radius: 14px;
+    padding: 12px 16px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+  }
+  .brand .mark { font-size: 20px; }
+  .brand h1 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    margin: 0;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .score {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .score .side {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .score .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+  }
+  .dot.red { background: var(--red); box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 30%, transparent); }
+  .dot.blue { background: var(--blue); box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 30%, transparent); }
+  .score .num {
+    display: inline-block;
+    min-width: 1.1em;
+    text-align: center;
+    font-size: 19px;
+    font-weight: 800;
+  }
+  .score .sep { color: var(--ink-dim); font-weight: 400; }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  #turnLabel {
+    font-size: 13px;
+    color: var(--ink-dim);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  #turnLabel.you { color: var(--red); }
+  #turnLabel.ai { color: var(--blue); }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--panel-line);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+  }
+  .reset-btn:hover { background: color-mix(in srgb, var(--panel-line) 40%, transparent); border-color: var(--ink-dim); }
+  .reset-btn:active { transform: translateY(1px); }
+
+  .pitch-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid var(--panel-line);
+    box-shadow: 0 20px 50px -20px rgba(0,0,0,0.6);
+    background: #0e3a1f;
+    touch-action: none;
+  }
+
+  canvas#game {
+    display: block;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .goal-flash {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .goal-flash.show { opacity: 1; }
+  .goal-flash span {
+    font-size: clamp(36px, 9vw, 72px);
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: var(--gold);
+    text-shadow: 0 0 24px rgba(242,182,50,0.7), 0 4px 0 rgba(0,0,0,0.4);
+    transform: scale(0.85);
+    animation: goalPop 1.5s ease forwards;
+  }
+  @keyframes goalPop {
+    0% { transform: scale(0.6); opacity: 0; }
+    15% { transform: scale(1.08); opacity: 1; }
+    25% { transform: scale(1); opacity: 1; }
+    80% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(1); opacity: 0; }
+  }
+
+  .modal-layer {
+    position: absolute;
+    inset: 0;
+    background: rgba(6,12,18,0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+  .modal-layer.show { opacity: 1; pointer-events: auto; }
+  .modal-card {
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 16px;
+    padding: 28px 32px;
+    text-align: center;
+    max-width: 300px;
+    transform: translateY(6px);
+  }
+  .modal-card h2 {
+    margin: 0 0 6px;
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+  }
+  .modal-card h2.win { color: var(--gold); }
+  .modal-card h2.lose { color: var(--ink-dim); }
+  .modal-card p {
+    margin: 0 0 18px;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  .modal-card button {
+    background: var(--red);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .modal-card button:active { transform: translateY(1px); }
+
+  .hint {
+    text-align: center;
+    color: var(--ink-dim);
+    font-size: 12.5px;
+    padding: 0 8px;
+  }
+  .hint b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">⚽</span>
+      <h1>Kickoff Duel</h1>
+    </div>
+    <div class="score">
+      <div class="side"><span class="dot red"></span><span class="num" id="scorePlayer">0</span></div>
+      <span class="sep">–</span>
+      <div class="side"><span class="num" id="scoreAi">0</span><span class="dot blue"></span></div>
+    </div>
+    <div class="status">
+      <span id="turnLabel" class="you">Your Turn</span>
+      <button class="reset-btn" id="resetBtn">Reset Game</button>
+    </div>
+  </div>
+
+  <div class="pitch-wrap" id="pitchWrap">
+    <canvas id="game" width="800" height="500"></canvas>
+    <div class="goal-flash" id="goalFlash"><span>GOAL!</span></div>
+    <div class="modal-layer" id="modalLayer">
+      <div class="modal-card">
+        <h2 id="modalTitle">VICTORY!</h2>
+        <p id="modalText">You won 2–0.</p>
+        <button id="modalResetBtn">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">Drag a <b style="color:var(--red)">red</b> disc backward and release to shoot toward the blue goal. First to <b>2</b> goals wins.</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Constants ----------
+  var CANVAS_W = 800, CANVAS_H = 500;
+  var FIELD_TOP = 22, FIELD_BOTTOM = 478;
+  var WALL_X_LEFT = 42, WALL_X_RIGHT = 758;
+  var GOAL_TOP = 180, GOAL_BOTTOM = 320;
+  var GOAL_BACK_LEFT = 6, GOAL_BACK_RIGHT = 794;
+
+  var CAP_R = 22, CAP_MASS = 3.0;
+  var BALL_R = 12, BALL_MASS = 1.0;
+  var CAP_FRICTION = 0.985, BALL_FRICTION = 0.990;
+  var STOP_EPS = 0.05;
+  var WALL_BOUNCE = 0.85;
+  var COLLIDE_RESTITUTION = 0.92;
+
+  var MAX_DRAG = 120;
+  var MAX_LAUNCH_SPEED = 27;
+  var POWER_FACTOR = MAX_LAUNCH_SPEED / MAX_DRAG;
+  var MIN_DRAG_TO_SHOOT = 5;
+
+  var AI_THINK_MS = 1000;
+  var AI_MAX_SPEED = 22;
+  var AI_MIN_SPEED = 10;
+
+  var WIN_SCORE = 2;
+
+  // ---------- DOM ----------
+  var canvas = document.getElementById("game");
+  var ctx = canvas.getContext("2d");
+  var scorePlayerEl = document.getElementById("scorePlayer");
+  var scoreAiEl = document.getElementById("scoreAi");
+  var turnLabelEl = document.getElementById("turnLabel");
+  var resetBtn = document.getElementById("resetBtn");
+  var goalFlashEl = document.getElementById("goalFlash");
+  var modalLayerEl = document.getElementById("modalLayer");
+  var modalTitleEl = document.getElementById("modalTitle");
+  var modalTextEl = document.getElementById("modalText");
+  var modalResetBtn = document.getElementById("modalResetBtn");
+
+  // ---------- State ----------
+  var redCaps = [];
+  var blueCaps = [];
+  var ball = null;
+  var allBodies = [];
+
+  var scores = { player: 0, ai: 0 };
+  var currentTurn = "player"; // 'player' | 'ai'
+  var wasMoving = false;
+  var goalPause = false;
+  var gameOver = false;
+  var aiThinking = false;
+
+  var dragging = null;
+  var dragStart = { x: 0, y: 0 };
+  var dragCurrent = { x: 0, y: 0 };
+
+  // ---------- Setup ----------
+  function makeCap(x, y, team) {
+    return { x: x, y: y, vx: 0, vy: 0, radius: CAP_R, mass: CAP_MASS, team: team };
+  }
+  function makeBall(x, y) {
+    return { x: x, y: y, vx: 0, vy: 0, radius: BALL_R, mass: BALL_MASS, team: "ball" };
+  }
+
+  function resetPositions() {
+    redCaps = [
+      makeCap(170, 150, "red"),
+      makeCap(150, 250, "red"),
+      makeCap(170, 350, "red")
+    ];
+    blueCaps = [
+      makeCap(630, 150, "blue"),
+      makeCap(650, 250, "blue"),
+      makeCap(630, 350, "blue")
+    ];
+    ball = makeBall(400, 250);
+    allBodies = redCaps.concat(blueCaps, [ball]);
+    wasMoving = false;
+  }
+
+  function resetGame() {
+    scores.player = 0;
+    scores.ai = 0;
+    gameOver = false;
+    goalPause = false;
+    aiThinking = false;
+    currentTurn = "player";
+    dragging = null;
+    resetPositions();
+    hideModal();
+    updateScoreUI();
+    updateTurnUI();
+  }
+
+  // ---------- UI helpers ----------
+  function updateScoreUI() {
+    scorePlayerEl.textContent = String(scores.player);
+    scoreAiEl.textContent = String(scores.ai);
+  }
+  function updateTurnUI() {
+    if (gameOver) return;
+    if (currentTurn === "player") {
+      turnLabelEl.textContent = "Your Turn";
+      turnLabelEl.className = "you";
+    } else {
+      turnLabelEl.textContent = aiThinking ? "AI Thinking…" : "AI's Turn";
+      turnLabelEl.className = "ai";
+    }
+  }
+  function flashGoal(cb) {
+    goalFlashEl.classList.add("show");
+    setTimeout(function () {
+      goalFlashEl.classList.remove("show");
+      if (cb) cb();
+    }, 1500);
+  }
+  function showModal(winner) {
+    gameOver = true;
+    if (winner === "player") {
+      modalTitleEl.textContent = "VICTORY!";
+      modalTitleEl.className = "win";
+      modalTextEl.textContent = "You won " + scores.player + "–" + scores.ai + ".";
+    } else {
+      modalTitleEl.textContent = "GAME OVER";
+      modalTitleEl.className = "lose";
+      modalTextEl.textContent = "The AI won " + scores.ai + "–" + scores.player + ".";
+    }
+    turnLabelEl.textContent = "Game Over";
+    turnLabelEl.className = "";
+    modalLayerEl.classList.add("show");
+  }
+  function hideModal() {
+    modalLayerEl.classList.remove("show");
+  }
+
+  // ---------- Physics ----------
+  function applyFriction(body) {
+    var f = body === ball ? BALL_FRICTION : CAP_FRICTION;
+    body.vx *= f;
+    body.vy *= f;
+    if (Math.abs(body.vx) < STOP_EPS) body.vx = 0;
+    if (Math.abs(body.vy) < STOP_EPS) body.vy = 0;
+  }
+
+  function handleWallCollision(body) {
+    var r = body.radius;
+
+    // Top / bottom outer walls
+    if (body.y - r < FIELD_TOP) {
+      body.y = FIELD_TOP + r;
+      body.vy = -body.vy * WALL_BOUNCE;
+    } else if (body.y + r > FIELD_BOTTOM) {
+      body.y = FIELD_BOTTOM - r;
+      body.vy = -body.vy * WALL_BOUNCE;
+    }
+
+    var inGoalMouthLeft = body.y - r > GOAL_TOP && body.y + r < GOAL_BOTTOM;
+
+    // Left side
+    if (body.x - r < WALL_X_LEFT) {
+      if (inGoalMouthLeft) {
+        if (body.x - r < GOAL_BACK_LEFT) {
+          body.x = GOAL_BACK_LEFT + r;
+          body.vx = -body.vx * WALL_BOUNCE;
+        }
+      } else {
+        body.x = WALL_X_LEFT + r;
+        body.vx = -body.vx * WALL_BOUNCE;
+      }
+    }
+
+    // Right side
+    if (body.x + r > WALL_X_RIGHT) {
+      var inGoalMouthRight = body.y - r > GOAL_TOP && body.y + r < GOAL_BOTTOM;
+      if (inGoalMouthRight) {
+        if (body.x + r > GOAL_BACK_RIGHT) {
+          body.x = GOAL_BACK_RIGHT - r;
+          body.vx = -body.vx * WALL_BOUNCE;
+        }
+      } else {
+        body.x = WALL_X_RIGHT - r;
+        body.vx = -body.vx * WALL_BOUNCE;
+      }
+    }
+  }
+
+  function resolveCollisions(bodies) {
+    for (var i = 0; i < bodies.length; i++) {
+      for (var j = i + 1; j < bodies.length; j++) {
+        var a = bodies[i], b = bodies[j];
+        var dx = b.x - a.x, dy = b.y - a.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var minDist = a.radius + b.radius;
+        if (dist > 0 && dist < minDist) {
+          var overlap = (minDist - dist) / 2;
+          var nx = dx / dist, ny = dy / dist;
+          a.x -= nx * overlap; a.y -= ny * overlap;
+          b.x += nx * overlap; b.y += ny * overlap;
+
+          var relVx = a.vx - b.vx, relVy = a.vy - b.vy;
+          var velAlongNormal = relVx * nx + relVy * ny;
+          if (velAlongNormal > 0) continue;
+
+          var invMassA = 1 / a.mass, invMassB = 1 / b.mass;
+          var impulse = -(1 + COLLIDE_RESTITUTION) * velAlongNormal / (invMassA + invMassB);
+          var ix = impulse * nx, iy = impulse * ny;
+          a.vx += ix * invMassA; a.vy += iy * invMassA;
+          b.vx -= ix * invMassB; b.vy -= iy * invMassB;
+        }
+      }
+    }
+  }
+
+  function isMoving() {
+    for (var i = 0; i < allBodies.length; i++) {
+      var b = allBodies[i];
+      if (Math.abs(b.vx) > STOP_EPS || Math.abs(b.vy) > STOP_EPS) return true;
+    }
+    return false;
+  }
+
+  function checkGoal() {
+    if (goalPause || gameOver) return;
+    if (ball.y - BALL_R > GOAL_TOP && ball.y + BALL_R < GOAL_BOTTOM) {
+      if (ball.x + BALL_R < WALL_X_LEFT) {
+        scoreGoal("ai");
+      } else if (ball.x - BALL_R > WALL_X_RIGHT) {
+        scoreGoal("player");
+      }
+    }
+  }
+
+  function scoreGoal(who) {
+    goalPause = true;
+    scores[who]++;
+    updateScoreUI();
+    flashGoal(function () {
+      if (scores[who] >= WIN_SCORE) {
+        showModal(who);
+        return;
+      }
+      resetPositions();
+      // Conceding side restarts.
+      currentTurn = who === "player" ? "ai" : "player";
+      goalPause = false;
+      updateTurnUI();
+      if (currentTurn === "ai") scheduleAiMove();
+    });
+  }
+
+  function onMovementStopped() {
+    if (gameOver || goalPause) return;
+    if (currentTurn === "player") {
+      currentTurn = "ai";
+      updateTurnUI();
+      scheduleAiMove();
+    } else {
+      currentTurn = "player";
+      updateTurnUI();
+    }
+  }
+
+  function updatePhysics() {
+    if (goalPause || gameOver) return;
+
+    var movingBefore = wasMoving;
+
+    for (var i = 0; i < allBodies.length; i++) {
+      var body = allBodies[i];
+      if (dragging === body) continue; // held caps don't move
+      applyFriction(body);
+      body.x += body.vx;
+      body.y += body.vy;
+      handleWallCollision(body);
+    }
+    resolveCollisions(allBodies);
+    checkGoal();
+
+    var movingNow = isMoving();
+    if (movingBefore && !movingNow) {
+      onMovementStopped();
+    }
+    wasMoving = movingNow;
+  }
+
+  // ---------- AI ----------
+  function normalizeAngle(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+  }
+
+  function scheduleAiMove() {
+    aiThinking = true;
+    updateTurnUI();
+    setTimeout(function () {
+      aiThinking = false;
+      if (!gameOver && currentTurn === "ai" && !goalPause) {
+        aiMakeMove();
+      }
+      updateTurnUI();
+    }, AI_THINK_MS);
+  }
+
+  function aiMakeMove() {
+    var targetX = WALL_X_LEFT, targetY = (GOAL_TOP + GOAL_BOTTOM) / 2;
+    var bestCap = null, bestScore = -Infinity, bestAngle = 0, bestDist = 0;
+
+    for (var i = 0; i < blueCaps.length; i++) {
+      var cap = blueCaps[i];
+      var toBallX = ball.x - cap.x, toBallY = ball.y - cap.y;
+      var distToBall = Math.sqrt(toBallX * toBallX + toBallY * toBallY);
+      var angleToBall = Math.atan2(toBallY, toBallX);
+
+      var toGoalX = targetX - ball.x, toGoalY = targetY - ball.y;
+      var angleBallToGoal = Math.atan2(toGoalY, toGoalX);
+
+      var diff = Math.abs(normalizeAngle(angleToBall - angleBallToGoal));
+      var score = -diff * 4 - distToBall * 0.005;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestCap = cap;
+        bestAngle = angleToBall;
+        bestDist = distToBall;
+      }
+    }
+
+    if (!bestCap) return;
+
+    // Slight human-like inaccuracy.
+    bestAngle += (Math.random() - 0.5) * 0.12;
+
+    var speed = AI_MIN_SPEED + Math.min(bestDist / 6, AI_MAX_SPEED - AI_MIN_SPEED);
+    bestCap.vx = Math.cos(bestAngle) * speed;
+    bestCap.vy = Math.sin(bestAngle) * speed;
+  }
+
+  // ---------- Input ----------
+  function getPointerPos(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX, clientY;
+    if (evt.touches && evt.touches.length) {
+      clientX = evt.touches[0].clientX;
+      clientY = evt.touches[0].clientY;
+    } else if (evt.changedTouches && evt.changedTouches.length) {
+      clientX = evt.changedTouches[0].clientX;
+      clientY = evt.changedTouches[0].clientY;
+    } else {
+      clientX = evt.clientX;
+      clientY = evt.clientY;
+    }
+    var scaleX = CANVAS_W / rect.width;
+    var scaleY = CANVAS_H / rect.height;
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  }
+
+  function canPlayerAct() {
+    return currentTurn === "player" && !goalPause && !gameOver && !isMoving();
+  }
+
+  function onPointerDown(evt) {
+    if (!canPlayerAct()) return;
+    var pos = getPointerPos(evt);
+    for (var i = 0; i < redCaps.length; i++) {
+      var cap = redCaps[i];
+      var d = Math.hypot(pos.x - cap.x, pos.y - cap.y);
+      if (d <= cap.radius + 8) {
+        dragging = cap;
+        dragStart = { x: cap.x, y: cap.y };
+        dragCurrent = { x: pos.x, y: pos.y };
+        evt.preventDefault();
+        break;
+      }
+    }
+  }
+
+  function onPointerMove(evt) {
+    if (!dragging) return;
+    dragCurrent = getPointerPos(evt);
+    evt.preventDefault();
+  }
+
+  function onPointerUp(evt) {
+    if (!dragging) return;
+    var dx = dragCurrent.x - dragStart.x;
+    var dy = dragCurrent.y - dragStart.y;
+    var len = Math.hypot(dx, dy);
+    if (len > MAX_DRAG) {
+      var s = MAX_DRAG / len;
+      dx *= s; dy *= s; len = MAX_DRAG;
+    }
+    if (len >= MIN_DRAG_TO_SHOOT) {
+      var power = len * POWER_FACTOR;
+      var angle = Math.atan2(dy, dx);
+      dragging.vx = -Math.cos(angle) * power;
+      dragging.vy = -Math.sin(angle) * power;
+    }
+    dragging = null;
+    if (evt.cancelable) evt.preventDefault();
+  }
+
+  canvas.addEventListener("mousedown", onPointerDown);
+  window.addEventListener("mousemove", onPointerMove);
+  window.addEventListener("mouseup", onPointerUp);
+
+  canvas.addEventListener("touchstart", onPointerDown, { passive: false });
+  window.addEventListener("touchmove", onPointerMove, { passive: false });
+  window.addEventListener("touchend", onPointerUp, { passive: false });
+  window.addEventListener("touchcancel", onPointerUp, { passive: false });
+
+  resetBtn.addEventListener("click", resetGame);
+  modalResetBtn.addEventListener("click", resetGame);
+
+  // ---------- Drawing ----------
+  function drawPitch() {
+    ctx.fillStyle = "#0e3a1f";
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Mowed-grass stripes
+    var stripeW = 40;
+    for (var x = 0; x < CANVAS_W; x += stripeW) {
+      ctx.fillStyle = (Math.floor(x / stripeW) % 2 === 0) ? "#136a34" : "#12622f";
+      ctx.fillRect(x, FIELD_TOP, stripeW, FIELD_BOTTOM - FIELD_TOP);
+    }
+
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 3;
+    ctx.lineJoin = "round";
+
+    // Outer boundary (top, bottom, and sides split by goal mouths)
+    ctx.beginPath();
+    ctx.moveTo(WALL_X_LEFT, FIELD_TOP);
+    ctx.lineTo(WALL_X_RIGHT, FIELD_TOP);
+    ctx.lineTo(WALL_X_RIGHT, FIELD_BOTTOM);
+    ctx.lineTo(WALL_X_LEFT, FIELD_BOTTOM);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Middle line
+    ctx.beginPath();
+    ctx.moveTo(CANVAS_W / 2, FIELD_TOP);
+    ctx.lineTo(CANVAS_W / 2, FIELD_BOTTOM);
+    ctx.stroke();
+
+    // Center circle + spot
+    ctx.beginPath();
+    ctx.arc(CANVAS_W / 2, CANVAS_H / 2, 55, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(CANVAS_W / 2, CANVAS_H / 2, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fill();
+
+    // Penalty boxes + arcs (left & right)
+    var boxW = 95, boxH = 190;
+    ctx.strokeRect(WALL_X_LEFT, CANVAS_H / 2 - boxH / 2, boxW, boxH);
+    ctx.strokeRect(WALL_X_RIGHT - boxW, CANVAS_H / 2 - boxH / 2, boxW, boxH);
+
+    ctx.beginPath();
+    ctx.arc(WALL_X_LEFT + boxW, CANVAS_H / 2, 46, -0.62, 0.62);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(WALL_X_RIGHT - boxW, CANVAS_H / 2, 46, Math.PI - 0.62, Math.PI + 0.62);
+    ctx.stroke();
+
+    // Goal mouths + nets
+    drawGoal(WALL_X_LEFT, "left");
+    drawGoal(WALL_X_RIGHT, "right");
+  }
+
+  function drawGoal(wallX, side) {
+    var backX = side === "left" ? GOAL_BACK_LEFT : GOAL_BACK_RIGHT;
+    var x0 = side === "left" ? backX : wallX;
+    var x1 = side === "left" ? wallX : backX;
+    var w = Math.abs(x1 - x0);
+
+    // Net shading
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(x0, GOAL_TOP, w, GOAL_BOTTOM - GOAL_TOP);
+
+    // Net hatch pattern
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1;
+    var step = 10;
+    ctx.beginPath();
+    for (var gy = GOAL_TOP; gy <= GOAL_BOTTOM; gy += step) {
+      ctx.moveTo(x0, gy);
+      ctx.lineTo(x1, gy);
+    }
+    for (var gx = x0; gx <= x1; gx += step) {
+      ctx.moveTo(gx, GOAL_TOP);
+      ctx.lineTo(gx, GOAL_BOTTOM);
+    }
+    ctx.stroke();
+
+    // Goal frame
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x0, GOAL_TOP, w, GOAL_BOTTOM - GOAL_TOP);
+  }
+
+  function drawDisc(body, colorTop, colorBottom, ring) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(body.x, body.y + body.radius * 0.32, body.radius * 0.9, body.radius * 0.32, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.fill();
+
+    var grad = ctx.createRadialGradient(
+      body.x - body.radius * 0.3, body.y - body.radius * 0.35, body.radius * 0.15,
+      body.x, body.y, body.radius
+    );
+    grad.addColorStop(0, colorTop);
+    grad.addColorStop(1, colorBottom);
+
+    ctx.beginPath();
+    ctx.arc(body.x, body.y, body.radius, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    if (ring) {
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = ring;
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.arc(body.x - body.radius * 0.32, body.y - body.radius * 0.32, body.radius * 0.28, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBall() {
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(ball.x, ball.y + ball.radius * 0.4, ball.radius * 0.85, ball.radius * 0.3, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#f4f6f7";
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.stroke();
+
+    // Simplified pentagon markings
+    ctx.fillStyle = "#1a1f22";
+    drawPentagon(ball.x, ball.y - ball.radius * 0.02, ball.radius * 0.42, 0);
+    drawPentagon(ball.x - ball.radius * 0.62, ball.y + ball.radius * 0.5, ball.radius * 0.3, 0.4);
+    drawPentagon(ball.x + ball.radius * 0.62, ball.y + ball.radius * 0.5, ball.radius * 0.3, -0.4);
+    ctx.restore();
+  }
+
+  function drawPentagon(cx, cy, r, rot) {
+    ctx.beginPath();
+    for (var i = 0; i < 5; i++) {
+      var ang = rot + i * (Math.PI * 2 / 5) - Math.PI / 2;
+      var px = cx + Math.cos(ang) * r;
+      var py = cy + Math.sin(ang) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawAimAndPower() {
+    if (!dragging) return;
+    var dx = dragCurrent.x - dragStart.x;
+    var dy = dragCurrent.y - dragStart.y;
+    var len = Math.hypot(dx, dy);
+    if (len > MAX_DRAG) {
+      var s = MAX_DRAG / len;
+      dx *= s; dy *= s; len = MAX_DRAG;
+    }
+    var aimX = dragging.x - dx;
+    var aimY = dragging.y - dy;
+
+    ctx.save();
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.beginPath();
+    ctx.moveTo(dragging.x, dragging.y);
+    ctx.lineTo(aimX, aimY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Arrowhead
+    var ang = Math.atan2(aimY - dragging.y, aimX - dragging.x);
+    ctx.beginPath();
+    ctx.moveTo(aimX, aimY);
+    ctx.lineTo(aimX - Math.cos(ang - 0.35) * 12, aimY - Math.sin(ang - 0.35) * 12);
+    ctx.lineTo(aimX - Math.cos(ang + 0.35) * 12, aimY - Math.sin(ang + 0.35) * 12);
+    ctx.closePath();
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fill();
+
+    // Power bar near the cap
+    var barW = 60, barH = 8;
+    var barX = dragging.x - barW / 2;
+    var barY = dragging.y + dragging.radius + 14;
+    var pct = len / MAX_DRAG;
+    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = pct > 0.75 ? "#e5473a" : pct > 0.4 ? "#f2b632" : "#7bd88f";
+    ctx.fillRect(barX, barY, barW * pct, barH);
+    ctx.strokeStyle = "rgba(255,255,255,0.6)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, barH);
+    ctx.restore();
+  }
+
+  function draw() {
+    drawPitch();
+
+    for (var i = 0; i < redCaps.length; i++) {
+      drawDisc(redCaps[i], "#ff6a5c", "#b2291d", "#7a160f");
+    }
+    for (var j = 0; j < blueCaps.length; j++) {
+      drawDisc(blueCaps[j], "#5fa2ff", "#1f5fbe", "#123a7a");
+    }
+    drawBall();
+    drawAimAndPower();
+  }
+
+  // ---------- Main loop ----------
+  function loop() {
+    updatePhysics();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  resetGame();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

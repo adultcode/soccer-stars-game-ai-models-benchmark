@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Cap Soccer</title>
+<style>
+  :root {
+    --night: #0c1626;
+    --night-2: #14243b;
+    --chalk: #f1f5ee;
+    --chalk-dim: rgba(241, 245, 238, 0.68);
+    --red: #e0393e;
+    --blue: #2f7de1;
+    --amber: #ffc93c;
+    --amber-dark: #3a2a00;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(ellipse 60% 40% at 15% 0%, rgba(255, 244, 200, 0.10), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 85% 0%, rgba(255, 244, 200, 0.10), transparent 70%),
+      var(--night);
+    color: var(--chalk);
+    font-family: "Avenir Next", "Segoe UI", "Trebuchet MS", system-ui, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #app {
+    width: 100%;
+    max-width: 840px;
+    padding: 10px 8px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  #topbar {
+    width: min(100%, calc((100vh - 150px) * 1.6));
+    min-width: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: var(--night-2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 8px 12px;
+  }
+  #score {
+    font-size: clamp(15px, 3.6vw, 22px);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  #turn {
+    font-size: clamp(12px, 2.8vw, 15px);
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid transparent;
+    white-space: nowrap;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  #turn[data-side="player"] { border-color: var(--red); background: rgba(224, 57, 62, 0.18); }
+  #turn[data-side="ai"]     { border-color: var(--blue); background: rgba(47, 125, 225, 0.18); }
+  #turn[data-side="none"]   { border-color: var(--amber); background: rgba(255, 201, 60, 0.16); }
+  #resetBtn {
+    font: inherit;
+    font-weight: 800;
+    font-size: clamp(12px, 2.8vw, 15px);
+    color: var(--amber-dark);
+    background: var(--amber);
+    border: none;
+    border-radius: 10px;
+    padding: 9px 16px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #b78b12;
+    white-space: nowrap;
+  }
+  #resetBtn:hover { background: #ffd65e; }
+  #resetBtn:active { transform: translateY(2px); box-shadow: 0 1px 0 #b78b12; }
+  #resetBtn:focus-visible, .modal-btn:focus-visible { outline: 3px solid var(--chalk); outline-offset: 2px; }
+
+  #stage {
+    position: relative;
+    width: min(100%, calc((100vh - 150px) * 1.6));
+    min-width: 300px;
+    aspect-ratio: 800 / 500;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+    border: 3px solid #0a111d;
+  }
+  @supports (height: 100dvh) {
+    #topbar, #stage { width: min(100%, calc((100dvh - 150px) * 1.6)); }
+  }
+  canvas#game {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: default;
+  }
+
+  #goalBanner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-size: clamp(44px, 14vw, 120px);
+    font-weight: 900;
+    font-style: italic;
+    color: var(--chalk);
+    text-shadow: 0 4px 0 rgba(0, 0, 0, 0.45), 0 0 40px rgba(255, 201, 60, 0.9);
+    background: rgba(0, 0, 0, 0.28);
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.18s, transform 0.28s cubic-bezier(.2, 1.6, .4, 1);
+  }
+  #goalBanner.show { opacity: 1; transform: scale(1); }
+
+  #modal {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(6, 12, 22, 0.72);
+  }
+  #modal.show { display: flex; }
+  .modal-card {
+    background: var(--night-2);
+    border: 2px solid var(--amber);
+    border-radius: 16px;
+    padding: 22px 30px;
+    text-align: center;
+    max-width: 86%;
+  }
+  .modal-card h2 {
+    margin: 0 0 6px;
+    font-size: clamp(28px, 7vw, 46px);
+    font-weight: 900;
+    letter-spacing: 0.03em;
+  }
+  .modal-card h2.win  { color: var(--amber); }
+  .modal-card h2.lose { color: #ff7378; }
+  .modal-card p { margin: 0 0 16px; color: var(--chalk-dim); font-size: clamp(14px, 3vw, 18px); }
+  .modal-btn {
+    font: inherit;
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--amber-dark);
+    background: var(--amber);
+    border: none;
+    border-radius: 10px;
+    padding: 11px 24px;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #b78b12;
+  }
+  #hint { margin: 0; font-size: 13px; color: var(--chalk-dim); text-align: center; max-width: 560px; line-height: 1.4; }
+
+  @media (max-width: 520px) {
+    #topbar { flex-wrap: wrap; justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div id="score">Player: 0 | AI: 0</div>
+    <div id="turn" data-side="player" aria-live="polite">Your Turn</div>
+    <button id="resetBtn" type="button">Reset Game</button>
+  </div>
+
+  <div id="stage">
+    <canvas id="game" aria-label="Cap soccer pitch"></canvas>
+    <div id="goalBanner">GOAL!</div>
+    <div id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-card">
+        <h2 id="modalTitle">VICTORY!</h2>
+        <p id="modalText">Final score 2 – 0</p>
+        <button class="modal-btn" id="modalReset" type="button">Reset Game</button>
+      </div>
+    </div>
+  </div>
+
+  <p id="hint">Drag back from a red disc and release to shoot. The farther you pull, the harder the shot. First to 2 goals wins.</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ------------------------------------------------------------------ *
+   *  CONSTANTS
+   * ------------------------------------------------------------------ */
+  const W = 800, H = 500;
+
+  // Pitch geometry (goal nets are recessed beyond L and R)
+  const L = 56, R = 744, T = 24, B = 476;
+  const GT = 190, GB = 310, GY = 250;      // goal mouth top / bottom / centre y
+  const GD = 40;                            // goal depth
+
+  const CAP_R = 22, CAP_M = 3.0;
+  const BALL_R = 12, BALL_M = 1.0;
+
+  const F_CAP = 0.985;                      // per-frame friction
+  const F_BALL = 0.990;
+  const STOP_SPEED = 0.05;                  // px/frame below which we snap to 0
+  const BOUNCE = 0.85;                      // wall restitution
+  const MAX_DRAG = 120;                     // max pull distance (px)
+  const POWER_FACTOR = 0.15;                // launch velocity per px of drag
+  const MAX_BALL_SPEED = 32;
+  const SUBSTEPS = 4;                       // physics sub-steps per frame (anti-tunnelling)
+  const WIN_SCORE = 2;
+
+  /* ------------------------------------------------------------------ *
+   *  DOM / CANVAS SETUP
+   * ------------------------------------------------------------------ */
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const turnEl = document.getElementById('turn');
+  const goalBanner = document.getElementById('goalBanner');
+  const modal = document.getElementById('modal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalText = document.getElementById('modalText');
+
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  /* ------------------------------------------------------------------ *
+   *  STATE
+   * ------------------------------------------------------------------ */
+  const makeBody = (team, r, m, fric) => ({ team, r, m, fric, x: 0, y: 0, vx: 0, vy: 0, angle: 0 });
+
+  const playerCaps = [0, 1, 2].map(() => makeBody('player', CAP_R, CAP_M, F_CAP));
+  const aiCaps = [0, 1, 2].map(() => makeBody('ai', CAP_R, CAP_M, F_CAP));
+  const ball = makeBody('ball', BALL_R, BALL_M, F_BALL);
+  const caps = [...playerCaps, ...aiCaps];
+  const bodies = [...caps, ball];
+
+  const START = {
+    player: [[140, 250], [240, 150], [240, 350]],
+    ai:     [[660, 250], [560, 150], [560, 350]],
+    ball:   [400, 250]
+  };
+
+  let score = { player: 0, ai: 0 };
+  let turn = 'player';                // 'player' | 'ai'
+  let phase = 'aim';                  // 'aim' | 'moving' | 'goal' | 'over'
+  let isMoving = false;
+  let moveFrames = 0;
+  let dragging = null;                // { cap, x, y }
+  let hoverCap = false;
+  let aiTimer = null, goalTimer = null;
+  let gameId = 0;
+
+  /* ------------------------------------------------------------------ *
+   *  WALL SEGMENTS
+   * ------------------------------------------------------------------ */
+  const ballWalls = [
+    [L, T, R, T], [L, B, R, B],                       // top / bottom
+    [L, T, L, GT], [L, GB, L, B],                     // left end (either side of goal)
+    [R, T, R, GT], [R, GB, R, B],                     // right end
+    [L, GT, L - GD, GT], [L - GD, GT, L - GD, GB], [L - GD, GB, L, GB],   // left net
+    [R, GT, R + GD, GT], [R + GD, GT, R + GD, GB], [R + GD, GB, R, GB]    // right net
+  ];
+  // Caps may not enter the goals: close the mouths with invisible walls
+  const capWalls = ballWalls.concat([[L, GT, L, GB], [R, GT, R, GB]]);
+
+  /* ------------------------------------------------------------------ *
+   *  HELPERS
+   * ------------------------------------------------------------------ */
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  function distToSegment(px, py, ax, ay, bx, by) {
+    const abx = bx - ax, aby = by - ay;
+    const l2 = abx * abx + aby * aby;
+    let t = l2 ? ((px - ax) * abx + (py - ay) * aby) / l2 : 0;
+    t = clamp(t, 0, 1);
+    return Math.hypot(px - (ax + t * abx), py - (ay + t * aby));
+  }
+
+  function polyPath(g, cx, cy, r, n, rot) {
+    g.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = rot + i * 2 * Math.PI / n;
+      const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    }
+    g.closePath();
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  RESET
+   * ------------------------------------------------------------------ */
+  function resetPositions() {
+    playerCaps.forEach((c, i) => { c.x = START.player[i][0]; c.y = START.player[i][1]; });
+    aiCaps.forEach((c, i) => { c.x = START.ai[i][0]; c.y = START.ai[i][1]; });
+    ball.x = START.ball[0]; ball.y = START.ball[1];
+    bodies.forEach(b => { b.vx = 0; b.vy = 0; b.angle = 0; });
+    isMoving = false;
+    moveFrames = 0;
+    dragging = null;
+  }
+
+  function resetGame() {
+    clearTimeout(aiTimer); clearTimeout(goalTimer);
+    aiTimer = goalTimer = null;
+    gameId++;
+    score = { player: 0, ai: 0 };
+    goalBanner.classList.remove('show');
+    modal.classList.remove('show');
+    resetPositions();
+    turn = 'player';
+    phase = 'aim';
+    updateUI();
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  PHYSICS
+   * ------------------------------------------------------------------ */
+  function collideWall(b, ax, ay, bx, by) {
+    const abx = bx - ax, aby = by - ay;
+    const l2 = abx * abx + aby * aby;
+    let t = ((b.x - ax) * abx + (b.y - ay) * aby) / l2;
+    t = clamp(t, 0, 1);
+    const cx = ax + t * abx, cy = ay + t * aby;
+    const dx = b.x - cx, dy = b.y - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= b.r * b.r) return;
+
+    let nx, ny, d = Math.sqrt(d2);
+    if (d < 1e-6) {                       // centre exactly on the wall: push toward the pitch
+      const len = Math.sqrt(l2);
+      nx = -aby / len; ny = abx / len;
+      if ((b.x - 400) * nx + (b.y - 250) * ny > 0) { nx = -nx; ny = -ny; }
+      d = 0;
+    } else { nx = dx / d; ny = dy / d; }
+
+    b.x += nx * (b.r - d);
+    b.y += ny * (b.r - d);
+    const vn = b.vx * nx + b.vy * ny;
+    if (vn < 0) {
+      b.vx -= (1 + BOUNCE) * vn * nx;
+      b.vy -= (1 + BOUNCE) * vn * ny;
+    }
+  }
+
+  function collideBodies(a, b) {
+    let dx = a.x - b.x, dy = a.y - b.y;
+    let d = Math.hypot(dx, dy);
+    const minD = a.r + b.r;
+    if (d >= minD) return;
+    if (d < 1e-6) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; d = Math.hypot(dx, dy); }
+    const nx = dx / d, ny = dy / d;
+
+    // Overlap resolution, weighted by inverse mass
+    const inv1 = 1 / a.m, inv2 = 1 / b.m;
+    const sep = minD - d;
+    a.x += nx * sep * inv1 / (inv1 + inv2);
+    a.y += ny * sep * inv1 / (inv1 + inv2);
+    b.x -= nx * sep * inv2 / (inv1 + inv2);
+    b.y -= ny * sep * inv2 / (inv1 + inv2);
+
+    // Elastic collision: v1' = v1 - 2m2/(m1+m2) * <v1-v2, n> * n
+    const dot = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+    if (dot < 0) {
+      const M = a.m + b.m;
+      const ca = 2 * b.m / M * dot;
+      const cb = 2 * a.m / M * dot;
+      a.vx -= ca * nx; a.vy -= ca * ny;
+      b.vx += cb * nx; b.vy += cb * ny;
+    }
+  }
+
+  function resolveCollisions() {
+    for (let iter = 0; iter < 2; iter++) {
+      for (let i = 0; i < bodies.length; i++) {
+        for (let j = i + 1; j < bodies.length; j++) collideBodies(bodies[i], bodies[j]);
+      }
+      for (const c of caps) for (const w of capWalls) collideWall(c, w[0], w[1], w[2], w[3]);
+      for (const w of ballWalls) collideWall(ball, w[0], w[1], w[2], w[3]);
+    }
+    // Hard safety clamp so caps can never leave the pitch
+    for (const c of caps) {
+      c.x = clamp(c.x, L + c.r, R - c.r);
+      c.y = clamp(c.y, T + c.r, B - c.r);
+    }
+  }
+
+  function updatePhysics() {
+    const subFric = b => Math.pow(b.fric, 1 / SUBSTEPS);
+    const extraDamp = moveFrames > 600 ? Math.pow(0.97, 1 / SUBSTEPS) : 1;   // failsafe: nothing rolls forever
+
+    for (let s = 0; s < SUBSTEPS; s++) {
+      for (const b of bodies) { b.x += b.vx / SUBSTEPS; b.y += b.vy / SUBSTEPS; }
+      resolveCollisions();
+      const sp = Math.hypot(ball.vx, ball.vy);
+      if (sp > MAX_BALL_SPEED) { ball.vx *= MAX_BALL_SPEED / sp; ball.vy *= MAX_BALL_SPEED / sp; }
+      for (const b of bodies) {
+        const f = subFric(b) * extraDamp;
+        b.vx *= f; b.vy *= f;
+      }
+      checkGoal();
+    }
+
+    for (const b of bodies) {
+      if (Math.hypot(b.vx, b.vy) < STOP_SPEED) { b.vx = 0; b.vy = 0; }
+    }
+    ball.angle += ball.vx / ball.r * 0.6;      // visual roll
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  GOALS & GAME FLOW
+   * ------------------------------------------------------------------ */
+  function checkGoal() {
+    if (phase === 'goal' || phase === 'over') return;
+    if (ball.x + ball.r < L) scored('ai');
+    else if (ball.x - ball.r > R) scored('player');
+  }
+
+  function scored(who) {
+    phase = 'goal';
+    dragging = null;
+    score[who]++;
+    updateUI();
+    goalBanner.classList.add('show');
+    const id = gameId;
+    goalTimer = setTimeout(() => {
+      if (id !== gameId) return;
+      goalBanner.classList.remove('show');
+      if (score[who] >= WIN_SCORE) { endGame(who); return; }
+      resetPositions();
+      turn = who === 'player' ? 'ai' : 'player';     // conceding side kicks off
+      phase = 'aim';
+      onTurnStart();
+    }, 1500);
+  }
+
+  function endGame(winner) {
+    phase = 'over';
+    const won = winner === 'player';
+    modalTitle.textContent = won ? 'VICTORY!' : 'GAME OVER!';
+    modalTitle.className = won ? 'win' : 'lose';
+    modalText.textContent = `Final score: Player ${score.player} – AI ${score.ai}`;
+    modal.classList.add('show');
+    updateUI();
+  }
+
+  function onTurnStart() {
+    updateUI();
+    if (turn === 'ai') {
+      const id = gameId;
+      clearTimeout(aiTimer);
+      aiTimer = setTimeout(() => { if (id === gameId) aiMakeMove(); }, 1000);
+    }
+  }
+
+  function updateUI() {
+    scoreEl.textContent = `Player: ${score.player} | AI: ${score.ai}`;
+    let text, side = 'none';
+    if (phase === 'over') text = 'Match over';
+    else if (phase === 'goal') text = 'Goal!';
+    else if (turn === 'ai') { side = 'ai'; text = phase === 'moving' ? 'AI shot in play' : 'AI Thinking...'; }
+    else { side = 'player'; text = phase === 'moving' ? 'Shot in play' : 'Your Turn'; }
+    turnEl.textContent = text;
+    turnEl.dataset.side = side;
+  }
+
+  function step() {
+    updatePhysics();
+    isMoving = bodies.some(b => b.vx !== 0 || b.vy !== 0);
+    moveFrames = isMoving ? moveFrames + 1 : 0;
+
+    if (phase === 'moving' && !isMoving) {
+      turn = turn === 'player' ? 'ai' : 'player';
+      phase = 'aim';
+      onTurnStart();
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  INPUT
+   * ------------------------------------------------------------------ */
+  const canShoot = () => turn === 'player' && phase === 'aim' && !isMoving;
+
+  function pointerPos(e) {
+    const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+    const r = canvas.getBoundingClientRect();
+    return { x: (t.clientX - r.left) * W / r.width, y: (t.clientY - r.top) * H / r.height };
+  }
+
+  function pickCap(p) {
+    let best = null, bd = Infinity;
+    for (const c of playerCaps) {
+      const d = Math.hypot(p.x - c.x, p.y - c.y);
+      if (d <= c.r + 10 && d < bd) { best = c; bd = d; }     // +10px slop for fingers
+    }
+    return best;
+  }
+
+  function handleInput() {
+    const down = e => {
+      if (!canShoot()) return;
+      const p = pointerPos(e);
+      const cap = pickCap(p);
+      if (cap) { dragging = { cap, x: p.x, y: p.y }; e.preventDefault(); }
+    };
+    const move = e => {
+      const p = pointerPos(e);
+      if (dragging) { dragging.x = p.x; dragging.y = p.y; e.preventDefault(); }
+      else if (e.type === 'mousemove') {
+        hoverCap = canShoot() && !!pickCap(p);
+        canvas.style.cursor = hoverCap ? 'grab' : 'default';
+      }
+    };
+    const up = e => {
+      if (!dragging) return;
+      if (e.type !== 'touchcancel') releaseShot();
+      else dragging = null;
+      canvas.style.cursor = 'default';
+    };
+
+    canvas.addEventListener('mousedown', down);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    canvas.addEventListener('touchstart', down, { passive: false });
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('touchend', up);
+    window.addEventListener('touchcancel', up);
+  }
+
+  function releaseShot() {
+    const d = dragging;
+    dragging = null;
+    if (!d || !canShoot()) return;
+    const dx = d.cap.x - d.x, dy = d.cap.y - d.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 8) return;                                   // ignore accidental taps
+    const k = Math.min(len, MAX_DRAG) / len * POWER_FACTOR;
+    d.cap.vx = dx * k;
+    d.cap.vy = dy * k;
+    phase = 'moving';
+    isMoving = true;
+    updateUI();
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  AI
+   * ------------------------------------------------------------------ */
+  function aiMakeMove() {
+    aiTimer = null;
+    if (turn !== 'ai' || phase !== 'aim') return;
+    if (isMoving) { aiTimer = setTimeout(aiMakeMove, 100); return; }
+
+    // Target: somewhere in the player's (left) goal mouth
+    const tx = L - 10, ty = GY + (Math.random() - 0.5) * 50;
+    const bdx = tx - ball.x, bdy = ty - ball.y;
+    const ballToGoal = Math.hypot(bdx, bdy) || 1;
+    const dirX = bdx / ballToGoal, dirY = bdy / ballToGoal;
+
+    // "Ghost" point: where a cap must arrive so the ball is pushed straight at the goal
+    const gap = CAP_R + BALL_R + 1;
+    const gx = clamp(ball.x - dirX * gap, L + CAP_R, R - CAP_R);
+    const gy = clamp(ball.y - dirY * gap, T + CAP_R, B - CAP_R);
+
+    let best = null;
+    const consider = c => { if (!best || c.q > best.q) best = c; };
+
+    for (const cap of aiCaps) {
+      const others = bodies.filter(b => b !== cap && b !== ball);
+      const blockPenalty = (ax, ay, bx, by) => {
+        let p = 0;
+        for (const o of others) if (distToSegment(o.x, o.y, ax, ay, bx, by) < CAP_R * 2 - 2) p += 45;
+        return p;
+      };
+
+      // Option A: line up behind the ball
+      const dG = Math.hypot(gx - cap.x, gy - cap.y);
+      const ballBlocks = distToSegment(ball.x, ball.y, cap.x, cap.y, gx, gy) < CAP_R + BALL_R - 2;
+      if (!ballBlocks && dG > 1) {
+        consider({ cap, px: gx, py: gy, dist: dG, ghost: true,
+                   q: 100 - dG * 0.06 - blockPenalty(cap.x, cap.y, gx, gy) });
+      }
+
+      // Option B: hit the ball directly
+      const dx = ball.x - cap.x, dy = ball.y - cap.y;
+      const dB = Math.hypot(dx, dy) || 1;
+      const align = (dx / dB) * dirX + (dy / dB) * dirY;    // 1 = pushes ball straight at goal
+      let q = align * 70 - dB * 0.05 - blockPenalty(cap.x, cap.y, ball.x, ball.y);
+      if (align < 0) q -= 40;
+      consider({ cap, px: ball.x, py: ball.y, dist: dB, ghost: false, q });
+    }
+
+    // Power: enough to reach the target point AND carry the ball to the goal
+    const vArrive = clamp(ballToGoal * 0.0075 * (best.ghost ? 1 : 1.15), 3, 14);
+    const speed = clamp(vArrive + best.dist * 0.015, 6, 18);
+    const angle = Math.atan2(best.py - best.cap.y, best.px - best.cap.x) + (Math.random() - 0.5) * 0.07;
+    best.cap.vx = Math.cos(angle) * speed;
+    best.cap.vy = Math.sin(angle) * speed;
+
+    phase = 'moving';
+    isMoving = true;
+    updateUI();
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  RENDERING
+   * ------------------------------------------------------------------ */
+  const pitchCanvas = document.createElement('canvas');
+  pitchCanvas.width = W * DPR;
+  pitchCanvas.height = H * DPR;
+
+  function buildPitch() {
+    const g = pitchCanvas.getContext('2d');
+    g.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    // Surround + grass stripes
+    g.fillStyle = '#1b5e35';
+    g.fillRect(0, 0, W, H);
+    const stripes = 14, sw = (R - L) / stripes;
+    for (let i = 0; i < stripes; i++) {
+      g.fillStyle = i % 2 ? '#2b8a4b' : '#2f9452';
+      g.fillRect(L + i * sw, T, sw + 0.5, B - T);
+    }
+
+    // Nets
+    const drawNet = (x0, x1) => {
+      g.fillStyle = 'rgba(8, 24, 14, 0.55)';
+      g.fillRect(x0, GT, x1 - x0, GB - GT);
+      g.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+      g.lineWidth = 1;
+      g.beginPath();
+      for (let x = x0; x <= x1; x += 8) { g.moveTo(x, GT); g.lineTo(x, GB); }
+      for (let y = GT; y <= GB; y += 8) { g.moveTo(x0, y); g.lineTo(x1, y); }
+      g.stroke();
+    };
+    drawNet(L - GD, L);
+    drawNet(R, R + GD);
+
+    // Markings
+    g.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    g.lineWidth = 2.5;
+    g.lineJoin = 'round';
+    g.strokeRect(L, T, R - L, B - T);
+    g.beginPath(); g.moveTo(400, T); g.lineTo(400, B); g.stroke();
+    g.beginPath(); g.arc(400, 250, 62, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    g.beginPath(); g.arc(400, 250, 4, 0, Math.PI * 2); g.fill();
+
+    // Penalty boxes, goal boxes, spots and arcs
+    const boxW = 118, boxH = 250, sixW = 44, sixH = 170, spotX = 88, arcR = 56;
+    const a = Math.acos((boxW - spotX) / arcR);
+    g.strokeRect(L, 250 - boxH / 2, boxW, boxH);
+    g.strokeRect(R - boxW, 250 - boxH / 2, boxW, boxH);
+    g.strokeRect(L, 250 - sixH / 2, sixW, sixH);
+    g.strokeRect(R - sixW, 250 - sixH / 2, sixW, sixH);
+    g.beginPath(); g.arc(L + spotX, 250, arcR, -a, a); g.stroke();
+    g.beginPath(); g.arc(R - spotX, 250, arcR, Math.PI - a, Math.PI + a); g.stroke();
+    g.beginPath(); g.arc(L + spotX, 250, 3, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(R - spotX, 250, 3, 0, Math.PI * 2); g.fill();
+
+    // Corner arcs
+    const cr = 12;
+    g.beginPath(); g.arc(L, T, cr, 0, Math.PI / 2); g.stroke();
+    g.beginPath(); g.arc(R, T, cr, Math.PI / 2, Math.PI); g.stroke();
+    g.beginPath(); g.arc(L, B, cr, -Math.PI / 2, 0); g.stroke();
+    g.beginPath(); g.arc(R, B, cr, Math.PI, Math.PI * 1.5); g.stroke();
+
+    // Goal frames + posts
+    g.strokeStyle = '#ffffff';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.moveTo(L, GT); g.lineTo(L - GD, GT); g.lineTo(L - GD, GB); g.lineTo(L, GB);
+    g.moveTo(R, GT); g.lineTo(R + GD, GT); g.lineTo(R + GD, GB); g.lineTo(R, GB);
+    g.stroke();
+    g.fillStyle = '#ffffff';
+    for (const [px, py] of [[L, GT], [L, GB], [R, GT], [R, GB]]) {
+      g.beginPath(); g.arc(px, py, 5, 0, Math.PI * 2); g.fill();
+    }
+  }
+
+  function drawCap(c, now) {
+    const isRed = c.team === 'player';
+    const base = isRed ? '#e0393e' : '#2f7de1';
+    const light = isRed ? '#ff8a8d' : '#8cc0ff';
+    const dark = isRed ? '#8f1a20' : '#173f80';
+
+    // shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.beginPath(); ctx.ellipse(c.x + 3, c.y + 5, c.r, c.r * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+
+    // selectable pulse
+    if (isRed && canShoot() && !dragging) {
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.35 + 0.25 * Math.sin(now / 280)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.r + 5, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    const grd = ctx.createRadialGradient(c.x - 7, c.y - 8, 3, c.x, c.y, c.r);
+    grd.addColorStop(0, light);
+    grd.addColorStop(0.45, base);
+    grd.addColorStop(1, dark);
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r - 1.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r * 0.55, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  function drawBall() {
+    const b = ball;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.beginPath(); ctx.ellipse(b.x + 2, b.y + 3.5, b.r, b.r * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.beginPath(); ctx.arc(0, 0, b.r, 0, Math.PI * 2); ctx.clip();
+    ctx.rotate(b.angle);
+
+    const grd = ctx.createRadialGradient(-4, -4, 1, 0, 0, b.r);
+    grd.addColorStop(0, '#ffffff');
+    grd.addColorStop(1, '#cfd6dc');
+    ctx.fillStyle = grd;
+    ctx.fillRect(-b.r, -b.r, b.r * 2, b.r * 2);
+
+    ctx.fillStyle = '#111';
+    polyPath(ctx, 0, 0, 4.6, 5, -Math.PI / 2); ctx.fill();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 4.6, Math.sin(a) * 4.6);
+      ctx.lineTo(Math.cos(a) * 8, Math.sin(a) * 8);
+      ctx.stroke();
+      const a2 = a + Math.PI / 5;
+      ctx.fillStyle = '#111';
+      polyPath(ctx, Math.cos(a) * 11.2, Math.sin(a) * 11.2, 3.6, 5, a + Math.PI);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r - 0.6, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  function powerColor(p) {
+    const r = Math.round(80 + 175 * p), g = Math.round(230 - 150 * p);
+    return `rgb(${r}, ${g}, 70)`;
+  }
+
+  function drawAim() {
+    if (!dragging) return;
+    const c = dragging.cap;
+    const dx = c.x - dragging.x, dy = c.y - dragging.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len, uy = dy / len;
+    const cl = Math.min(len, MAX_DRAG);
+    const power = cl / MAX_DRAG;
+    const col = powerColor(power);
+
+    // Pull band
+    const px = c.x - ux * cl, py = c.y - uy * cl;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(px, py); ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
+
+    // Aim line (opposite to the pull)
+    const sx = c.x + ux * (c.r + 4), sy = c.y + uy * (c.r + 4);
+    const alen = 50 + power * 200;
+    const ex = sx + ux * alen, ey = sy + uy * alen;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([9, 7]);
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(ex + ux * 12, ey + uy * 12);
+    ctx.lineTo(ex - uy * 8, ey + ux * 8);
+    ctx.lineTo(ex + uy * 8, ey - ux * 8);
+    ctx.closePath(); ctx.fill();
+
+    // Power bar in the bottom margin
+    const bx = 300, by = 483, bw = 200, bh = 8;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    ctx.fillStyle = col;
+    ctx.fillRect(bx, by, bw * power, bh);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = '600 11px "Segoe UI", Arial, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'right';
+    ctx.fillText('Power', bx - 8, by + bh / 2 + 1);
+    ctx.textAlign = 'left';
+    ctx.fillText(Math.round(power * 100) + '%', bx + bw + 8, by + bh / 2 + 1);
+  }
+
+  function draw(now) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(pitchCanvas, 0, 0, W, H);
+    for (const c of caps) drawCap(c, now);
+    drawBall();
+    drawAim();
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  MAIN LOOP (fixed 60 Hz physics, rAF rendering)
+   * ------------------------------------------------------------------ */
+  let last = performance.now(), acc = 0;
+  const DT = 1000 / 60;
+
+  function frame(now) {
+    acc += Math.min(now - last, 100);
+    last = now;
+    let n = 0;
+    while (acc >= DT && n < 5) { step(); acc -= DT; n++; }
+    if (n === 5) acc = 0;
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+
+  /* ------------------------------------------------------------------ *
+   *  INIT
+   * ------------------------------------------------------------------ */
+  document.getElementById('resetBtn').addEventListener('click', resetGame);
+  document.getElementById('modalReset').addEventListener('click', resetGame);
+
+  buildPitch();
+  handleInput();
+  resetGame();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
