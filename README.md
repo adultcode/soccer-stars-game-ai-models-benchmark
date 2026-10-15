@@ -1,3 +1,6 @@
+<img width="2752" height="936" alt="screenshot" src="https://github.com/user-attachments/assets/63bfaeeb-7772-4a82-886c-17c35fb53c11" />
+
+
 # AI Model Benchmark: Soccer Stars Game
 
 Compare how different AI models handle the same coding prompt: build a single-file HTML5 game inspired by Miniclip's **Soccer Stars** (turn-based 2D carrom-style physics).
